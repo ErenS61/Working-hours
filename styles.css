@@ -635,6 +635,14 @@ input[type="file"].form-input {
     z-index: 100;
 }
 
+.refresh-button {
+    background-color: rgba(255, 0, 0, 0.5) !important;
+}
+
+.refresh-button:hover {
+    background-color: rgba(255, 0, 0, 0.8) !important;
+}
+
 .floating-buttons button.main-button:hover {
     background-color: rgba(0, 255, 204, 0.9) !important;
 }
@@ -762,7 +770,7 @@ input[type="file"].form-input {
         max-height: 90vh;
     }
 
-    .floating-buttons {
+    /*.floating-buttons {
         bottom: 15px;
         right: 15px;
     }
@@ -772,7 +780,7 @@ input[type="file"].form-input {
         width: 45px;
         padding: 10px;
         font-size: 18px;
-    }
+    }*/
 }
 
 @media (max-width: 480px) {

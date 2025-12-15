@@ -804,6 +804,11 @@ function showSystemMessage(message, isError = false) {
     }, 3000);
 }
 
+// Fonction de rafraîchissement de la page
+function refreshPage() {
+    location.reload();
+}
+
 // Démarrer l'application
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initApp);
