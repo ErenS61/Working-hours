@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="fr" dir="ltr">
+  <head>
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" charset="utf-8" />
+    <title>Suivi des Heures de Travail</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="image/favicon.ico" sizes="32x32" type="image/x-icon" />
+    <link rel="icon" type="image/png" sizes="16x16" href="image/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="image/favicon-32x32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="image/apple-touch-icon-180x180.png" />
+    <link href="https://site-assets.fontawesome.com/releases/v7.1.0/css/all.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div>
+      <h1 id="pageTitle">⏰ Suivi des Heures de Travail</h1>
+
+      <div id="calendarContainer">
+        <div class="calendar-header">
+          <button id="prevMonth" class="calendar-nav">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <h2 id="currentMonth"></h2>
+          <button id="nextMonth" class="calendar-nav">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+
+        <div class="calendar-weekdays">
+          <div>Lun</div>
+          <div>Mar</div>
+          <div>Mer</div>
+          <div>Jeu</div>
+          <div>Ven</div>
+          <div>Sam</div>
+          <div>Dim</div>
+        </div>
+
+        <div id="calendarGrid" class="calendar-grid"></div>
+      </div>
+
+      <div id="hoursSummary" class="hours-summary">
+        <div class="summary-item">
+          <span class="summary-label">Heures Normales :</span>
+          <span id="normalHours" class="summary-value">0h</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Heures Supplémentaires :</span>
+          <span id="overtimeHours" class="summary-value">0h</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Total :</span>
+          <span id="totalHours" class="summary-value">0h</span>
+        </div>
+      </div>
+
+      <div id="workEntries" class="work-entries">
+        <h3>📝 Entrées du Mois</h3>
+        <div id="entriesList" class="entries-list"></div>
+      </div>
+    </div>
+
+    <!-- Boutons flottants -->
+    <div class="floating-buttons">
+      <!-- Bouton principal -->
+      <button class="main-button" id="mainFloatingButton">
+        <i class="fa-solid fa-plus"></i>
+      </button>
+
+      <button class="add-entry-button" onclick="showAddEntryModal()" id="addEntryButton">
+        <i class="fa-solid fa-clock"></i>
+      </button>
+
+      <button class="stats-button" onclick="showStatsModal()" id="statsButton">
+        <i class="fa-solid fa-chart-bar"></i>
+      </button>
+
+      <button class="export-button" onclick="exportData()" id="exportButton">
+        <i class="fa-solid fa-download"></i>
+      </button>
+
+      <button class="import-button" onclick="showImportModal()" id="importButton">
+        <i class="fa-solid fa-upload"></i>
+      </button>
+    </div>
+
+    <!-- Modal pour ajouter une entrée -->
+    <div id="addEntryModal" class="modal">
+      <div class="modal-content">
+        <button class="close-modal" onclick="closeAddEntryModal()">&times;</button>
+        <h2>➕ Ajouter des Heures</h2>
+
+        <div class="form-group">
+          <label for="entryDate">Date de début :</label>
+          <input type="date" id="entryDate" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label for="startTime">Heure de début :</label>
+          <input type="time" id="startTime" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="spreadOverTwoDays" onchange="toggleEndDate()" />
+            <label for="spreadOverTwoDays">Étalement sur 2 jours (nuit)</label>
+          </div>
+        </div>
+
+        <div class="form-group" id="endDateGroup" style="display: none">
+          <label for="endDate">Date de fin :</label>
+          <input type="date" id="endDate" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label for="endTime">Heure de fin :</label>
+          <input type="time" id="endTime" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label for="entryType">Type d'heures :</label>
+          <select id="entryType" class="form-input">
+            <option value="normal">Heures normales</option>
+            <option value="overtime">Heures supplémentaires</option>
+            <option value="night">Heures de nuit</option>
+            <option value="weekend">Week-end</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="entryNotes">Notes (optionnel) :</label>
+          <textarea id="entryNotes" class="form-input" rows="3" placeholder="Description du travail..."></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-cancel" onclick="closeAddEntryModal()">Annuler</button>
+          <button class="btn-save" onclick="saveEntry()">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal pour l'importation -->
+    <div id="importModal" class="modal">
+      <div class="modal-content">
+        <button class="close-modal" onclick="closeImportModal()">&times;</button>
+        <h2>📤 Importer des Données</h2>
+
+        <div class="form-group">
+          <label for="fileImport">Sélectionner un fichier JSON :</label>
+          <input type="file" id="fileImport" accept=".json" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="mergeData" checked />
+            <label for="mergeData">Fusionner avec les données existantes</label>
+          </div>
+          <small class="form-help">Si décoché, les données existantes seront remplacées</small>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-cancel" onclick="closeImportModal()">Annuler</button>
+          <button class="btn-save" onclick="importData()">Importer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal pour les statistiques -->
+    <div id="statsModal" class="modal">
+      <div class="modal-content">
+        <button class="close-modal" onclick="closeStatsModal()">&times;</button>
+        <h2>📊 Statistiques</h2>
+
+        <div class="stats-container">
+          <div class="stat-card">
+            <div class="stat-icon">
+              <i class="fa-solid fa-calendar-week"></i>
+            </div>
+            <div class="stat-value" id="statDaysWorked">0</div>
+            <div class="stat-label">Jours travaillés</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">
+              <i class="fa-solid fa-clock"></i>
+            </div>
+            <div class="stat-value" id="statAvgHours">0h</div>
+            <div class="stat-label">Moyenne/jour</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">
+              <i class="fa-solid fa-money-bill-wave"></i>
+            </div>
+            <div class="stat-value" id="statOvertimePercent">0%</div>
+            <div class="stat-label">Heures sup</div>
+          </div>
+        </div>
+
+        <div class="stats-chart">
+          <h3>Heures par semaine</h3>
+          <canvas id="hoursChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      const mainScript = document.createElement("script");
+      mainScript.src = "script.js?v=" + new Date().getTime();
+      mainScript.onload = function () {
+        console.log("Script principal chargé avec succès");
+      };
+      mainScript.onerror = function () {
+        console.error("Erreur de chargement du script principal");
+      };
+      document.body.appendChild(mainScript);
+    </script>
+  </body>
+</html>
