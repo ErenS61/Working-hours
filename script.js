@@ -5,6 +5,8 @@ let currentYear = currentDate.getFullYear();
 let workEntries = JSON.parse(localStorage.getItem("workEntries")) || [];
 let buttonsExpanded = false;
 const buttonDelay = 100;
+let entryToDelete = null;
+let entryToEdit = null;
 
 // Initialisation de l'application
 function initApp() {
@@ -109,7 +111,7 @@ function generateCalendar() {
         dayElement.className = "calendar-day";
 
         // Nettoyer les classes de type précédentes
-        dayElement.classList.remove("type-normal", "type-overtime", "type-night", "type-weekend");
+        dayElement.classList.remove("type-normal", "type-overtime", "type-night", "type-weekend", "type-leave");
 
         const date = new Date(currentYear, currentMonth, day);
         const isToday = isSameDay(date, new Date());
@@ -129,11 +131,20 @@ function generateCalendar() {
             // Ajouter la classe de type au jour du calendrier
             dayElement.classList.add(typeClass);
 
+            // Vérifier si au moins une entrée a des notes
+            const hasNotes = dayEntries.some((entry) => entry.notes && entry.notes.trim() !== "");
+
+            // Pour les congés, afficher "Congé" au lieu des heures
+            const displayText = dayHoursInfo.type === "leave" ? "Congé" : `${dayHoursInfo.hours}h`;
+
             dayElement.innerHTML = `
-                <div class="day-number">${day}</div>
+                <div class="day-number">
+                    ${day}
+                    ${hasNotes ? '<i class="fa-solid fa-pencil notes-icon"></i>' : ""}
+                </div>
                 <div class="day-indicator">
-                    <i class="fa-solid fa-clock"></i>
-                    <span class="day-hours ${typeClass}">${dayHoursInfo.hours}h</span>
+                    <i class="fa-solid ${dayHoursInfo.type === "leave" ? "fa-umbrella-beach" : "fa-clock"}"></i>
+                    <span class="day-hours ${typeClass}">${displayText}</span>
                 </div>
             `;
         } else {
@@ -199,8 +210,9 @@ function calculateDayHoursWithType(entries) {
     let dominantType = "normal"; // Type par défaut
 
     if (entries.length > 0) {
-        // Priorité des types : overtime > weekend > night > normal
+        // Priorité des types : leave > overtime > weekend > night > normal
         const typePriority = {
+            leave: 5,
             overtime: 4,
             weekend: 3,
             night: 2,
@@ -217,9 +229,19 @@ function calculateDayHoursWithType(entries) {
             }
         });
 
+        // Pour les congés/absences, on affiche "Congé" au lieu des heures
+        if (dominantType === "leave") {
+            return {
+                hours: "Congé",
+                type: "leave"
+            };
+        }
+
         // Calculer le total des heures
         entries.forEach((entry) => {
-            total += calculateHours(entry);
+            if (entry.type !== "leave") {
+                total += calculateHours(entry);
+            }
         });
     }
 
@@ -231,6 +253,11 @@ function calculateDayHoursWithType(entries) {
 
 // Calculer la durée en heures d'une entrée
 function calculateHours(entry) {
+    // Pour les congés/absences, retourner 0 heures
+    if (entry.type === "leave") {
+        return 0;
+    }
+
     const startParts = entry.startTime.split(":");
     const endParts = entry.endTime.split(":");
 
@@ -246,11 +273,9 @@ function calculateHours(entry) {
 
     if (entry.endDate && entry.endDate !== entry.date) {
         // Calcul pour les nuits sur 2 jours
-        // On considère que c'est une nuit qui commence un jour et finit le lendemain
-        // La durée est simplement la différence entre l'heure de fin et l'heure de début
         hours = endTotal - startTotal;
         if (hours < 0) {
-            hours += 24; // Si l'heure de fin est avant l'heure de début, ajouter 24h
+            hours += 24;
         }
     } else {
         // Calcul normal pour le même jour
@@ -283,9 +308,10 @@ function updateSummary() {
 
         if (entry.type === "normal") {
             normalHours += hours;
-        } else {
+        } else if (entry.type === "overtime" || entry.type === "night" || entry.type === "weekend") {
             overtimeHours += hours;
         }
+        // Les congés/absences ne comptent pas dans les heures
     });
 
     document.getElementById("normalHours").textContent = `${normalHours.toFixed(1)} h`;
@@ -331,29 +357,64 @@ function displayMonthEntries() {
             dateText += ` → ${formatDate(endDate)}`;
         }
 
-        entryElement.innerHTML = `
-            <div class="entry-date">
-                <i class="fa-solid fa-calendar-day"></i>
-                ${dateText}
-            </div>
-            <div class="entry-time">
-                <i class="fa-solid fa-clock"></i>
-                ${entry.startTime} - ${entry.endTime}
-                ${entry.endDate && entry.endDate !== entry.date ? " (nuit)" : ""}
-            </div>
-            <div class="entry-details">
-                <span class="entry-hours ${typeClass}">
-                    ${hours.toFixed(1)}h
-                </span>
-                <span class="entry-type ${typeClass}">
-                    ${getTypeLabel(entry.type)}
-                </span>
-            </div>
-            ${entry.notes ? `<div class="entry-notes">${entry.notes}</div>` : ""}
-            <button class="entry-delete" onclick="deleteEntry('${entry.id}')">
+        // Pour les congés/absences, afficher des informations différentes
+        if (entry.type === "leave") {
+            entryElement.innerHTML = `
+        <div class="entry-date">
+            <i class="fa-solid fa-calendar-day"></i>
+            ${dateText}
+        </div>
+        <div class="entry-time">
+            <i class="fa-solid fa-umbrella-beach"></i>
+            Congé/Absence
+        </div>
+        <div class="entry-details">
+            <!-- Vide à gauche pour aligner le badge à droite -->
+            <span style="visibility: hidden;">0h</span>
+            <span class="entry-type ${typeClass}">
+                ${getTypeLabel(entry.type)}
+            </span>
+        </div>
+        ${entry.notes ? `<div class="entry-notes">${entry.notes}</div>` : ""}
+        <div class="entry-actions">
+            <button class="entry-edit" onclick="editEntry('${entry.id}')" title="Modifier">
+                <i class="fa-solid fa-pencil"></i>
+            </button>
+            <button class="entry-delete" onclick="showDeleteConfirm('${entry.id}')" title="Supprimer">
                 <i class="fa-solid fa-trash"></i>
             </button>
-        `;
+        </div>
+    `;
+        } else {
+            entryElement.innerHTML = `
+                <div class="entry-date">
+                    <i class="fa-solid fa-calendar-day"></i>
+                    ${dateText}
+                </div>
+                <div class="entry-time">
+                    <i class="fa-solid fa-clock"></i>
+                    ${entry.startTime} - ${entry.endTime}
+                    ${entry.endDate && entry.endDate !== entry.date ? " (nuit)" : ""}
+                </div>
+                <div class="entry-details">
+                    <span class="entry-hours ${typeClass}">
+                        ${hours.toFixed(1)}h
+                    </span>
+                    <span class="entry-type ${typeClass}">
+                        ${getTypeLabel(entry.type)}
+                    </span>
+                </div>
+                ${entry.notes ? `<div class="entry-notes">${entry.notes}</div>` : ""}
+                <div class="entry-actions">
+                    <button class="entry-edit" onclick="editEntry('${entry.id}')" title="Modifier">
+                        <i class="fa-solid fa-pencil"></i>
+                    </button>
+                    <button class="entry-delete" onclick="showDeleteConfirm('${entry.id}')" title="Supprimer">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            `;
+        }
 
         entriesList.appendChild(entryElement);
     });
@@ -374,7 +435,8 @@ function getTypeClass(type) {
         normal: "type-normal",
         overtime: "type-overtime",
         night: "type-night",
-        weekend: "type-weekend"
+        weekend: "type-weekend",
+        leave: "type-leave"
     };
     return classes[type] || "type-normal";
 }
@@ -385,7 +447,8 @@ function getTypeLabel(type) {
         normal: "Normales",
         overtime: "Suppl.",
         night: "Nuit",
-        weekend: "Week-end"
+        weekend: "Week-end",
+        leave: "Congé"
     };
     return labels[type] || "Normales";
 }
@@ -396,8 +459,8 @@ function showAddEntryModal() {
     const today = new Date().toISOString().split("T")[0];
 
     document.getElementById("entryDate").value = today;
-    document.getElementById("startTime").value = "20:30";
-    document.getElementById("endTime").value = "05:30";
+    document.getElementById("startTime").value = "08:00";
+    document.getElementById("endTime").value = "17:00";
     document.getElementById("entryType").value = "normal";
     document.getElementById("entryNotes").value = "";
     document.getElementById("spreadOverTwoDays").checked = false;
@@ -405,7 +468,7 @@ function showAddEntryModal() {
     document.getElementById("endDate").value = "";
 
     modal.style.display = "flex";
-    toggleButtons(); // Replier les boutons
+    toggleButtons();
 }
 
 // Afficher/masquer le champ date de fin
@@ -464,23 +527,26 @@ function saveEntry() {
         }
     }
 
-    const entryData = {
-        date: date,
-        startTime: startTime,
-        endTime: endTime,
-        type: type,
-        notes: notes,
-        spreadOverTwoDays: spreadOverTwoDays
-    };
+    // Pour les congés/absences, les heures ne sont pas nécessaires
+    if (type !== "leave") {
+        const entryData = {
+            date: date,
+            startTime: startTime,
+            endTime: endTime,
+            type: type,
+            notes: notes,
+            spreadOverTwoDays: spreadOverTwoDays
+        };
 
-    if (spreadOverTwoDays) {
-        entryData.endDate = endDate;
-    }
+        if (spreadOverTwoDays) {
+            entryData.endDate = endDate;
+        }
 
-    const hours = calculateHours(entryData);
-    if (hours <= 0) {
-        showSystemMessage("La durée des heures doit être positive", true);
-        return;
+        const hours = calculateHours(entryData);
+        if (hours <= 0) {
+            showSystemMessage("La durée des heures doit être positive", true);
+            return;
+        }
     }
 
     // Créer l'entrée
@@ -510,34 +576,200 @@ function saveEntry() {
     displayMonthEntries();
     updateSummary();
 
-    // Fermer le modal et afficher un message
+    // Fermer le modal et afficher un message système
     closeAddEntryModal();
     showSystemMessage("Entrée enregistrée avec succès !");
 }
 
+// Afficher la confirmation de suppression MODAL
+function showDeleteConfirm(id) {
+    entryToDelete = id;
+
+    // Afficher le modal de confirmation
+    document.getElementById("confirmMessage").textContent = "Voulez-vous vraiment supprimer cette entrée ?";
+    document.getElementById("confirmModal").style.display = "flex";
+
+    // Configurer le bouton de confirmation
+    const confirmBtn = document.getElementById("confirmDeleteBtn");
+    confirmBtn.onclick = function () {
+        deleteEntry(entryToDelete);
+        closeConfirmModal();
+    };
+}
+
+// Fermer le modal de confirmation
+function closeConfirmModal() {
+    document.getElementById("confirmModal").style.display = "none";
+    entryToDelete = null;
+}
+
 // Supprimer une entrée
 function deleteEntry(id) {
-    if (confirm("Voulez-vous vraiment supprimer cette entrée ?")) {
-        workEntries = workEntries.filter((entry) => entry.id !== id);
-        localStorage.setItem("workEntries", JSON.stringify(workEntries));
+    workEntries = workEntries.filter((entry) => entry.id !== id);
+    localStorage.setItem("workEntries", JSON.stringify(workEntries));
 
-        displayMonthEntries();
-        updateSummary();
-        generateCalendar();
+    displayMonthEntries();
+    updateSummary();
+    generateCalendar();
 
-        showSystemMessage("Entrée supprimée", true);
+    showSystemMessage("Entrée supprimée", true);
+}
+
+// Afficher le modal d'édition
+function editEntry(id) {
+    entryToEdit = workEntries.find((entry) => entry.id === id);
+
+    if (!entryToEdit) {
+        showSystemMessage("Entrée non trouvée", true);
+        return;
     }
+
+    // Remplir le formulaire d'édition
+    document.getElementById("editEntryDate").value = entryToEdit.date;
+    document.getElementById("editStartTime").value = entryToEdit.startTime;
+    document.getElementById("editEndTime").value = entryToEdit.endTime;
+    document.getElementById("editEntryType").value = entryToEdit.type;
+    document.getElementById("editEntryNotes").value = entryToEdit.notes || "";
+
+    // Gérer l'étalement sur 2 jours
+    const hasEndDate = entryToEdit.endDate && entryToEdit.endDate !== entryToEdit.date;
+    document.getElementById("editSpreadOverTwoDays").checked = hasEndDate;
+
+    if (hasEndDate) {
+        document.getElementById("editEndDateGroup").style.display = "block";
+        document.getElementById("editEndDate").value = entryToEdit.endDate;
+    } else {
+        document.getElementById("editEndDateGroup").style.display = "none";
+        document.getElementById("editEndDate").value = "";
+    }
+
+    // Afficher le modal
+    document.getElementById("editEntryModal").style.display = "flex";
+}
+
+// Afficher/masquer le champ date de fin dans l'édition
+function toggleEditEndDate() {
+    const isChecked = document.getElementById("editSpreadOverTwoDays").checked;
+    const endDateGroup = document.getElementById("editEndDateGroup");
+    const startDate = document.getElementById("editEntryDate").value;
+
+    if (isChecked) {
+        endDateGroup.style.display = "block";
+        if (!entryToEdit.endDate || entryToEdit.endDate === entryToEdit.date) {
+            // Par défaut, mettre le jour suivant
+            const startDateObj = new Date(startDate);
+            startDateObj.setDate(startDateObj.getDate() + 1);
+            const nextDay = startDateObj.toISOString().split("T")[0];
+            document.getElementById("editEndDate").value = nextDay;
+        }
+    } else {
+        endDateGroup.style.display = "none";
+        document.getElementById("editEndDate").value = "";
+    }
+}
+
+// Fermer le modal d'édition
+function closeEditEntryModal() {
+    document.getElementById("editEntryModal").style.display = "none";
+    entryToEdit = null;
+}
+
+// Enregistrer l'entrée modifiée
+function saveEditedEntry() {
+    if (!entryToEdit) return;
+
+    const date = document.getElementById("editEntryDate").value;
+    const startTime = document.getElementById("editStartTime").value;
+    const endTime = document.getElementById("editEndTime").value;
+    const type = document.getElementById("editEntryType").value;
+    const notes = document.getElementById("editEntryNotes").value;
+    const spreadOverTwoDays = document.getElementById("editSpreadOverTwoDays").checked;
+    const endDate = spreadOverTwoDays ? document.getElementById("editEndDate").value : date;
+
+    // Validation
+    if (!date || !startTime || !endTime) {
+        showSystemMessage("Veuillez remplir tous les champs obligatoires", true);
+        return;
+    }
+
+    if (spreadOverTwoDays && !endDate) {
+        showSystemMessage("Veuillez spécifier la date de fin", true);
+        return;
+    }
+
+    // Vérifier si la date de fin est après la date de début
+    if (spreadOverTwoDays) {
+        const startDateObj = new Date(date);
+        const endDateObj = new Date(endDate);
+
+        if (endDateObj < startDateObj) {
+            showSystemMessage("La date de fin doit être après la date de début", true);
+            return;
+        }
+    }
+
+    // Pour les congés/absences, les heures ne sont pas nécessaires
+    if (type !== "leave") {
+        const entryData = {
+            date: date,
+            startTime: startTime,
+            endTime: endTime,
+            type: type,
+            notes: notes,
+            spreadOverTwoDays: spreadOverTwoDays
+        };
+
+        if (spreadOverTwoDays) {
+            entryData.endDate = endDate;
+        }
+
+        const hours = calculateHours(entryData);
+        if (hours <= 0) {
+            showSystemMessage("La durée des heures doit être positive", true);
+            return;
+        }
+    }
+
+    // Mettre à jour l'entrée
+    entryToEdit.date = date;
+    entryToEdit.startTime = startTime;
+    entryToEdit.endTime = endTime;
+    entryToEdit.type = type;
+    entryToEdit.notes = notes;
+    entryToEdit.spreadOverTwoDays = spreadOverTwoDays;
+
+    if (spreadOverTwoDays) {
+        entryToEdit.endDate = endDate;
+    } else {
+        delete entryToEdit.endDate;
+    }
+
+    // Sauvegarder dans le localStorage
+    localStorage.setItem("workEntries", JSON.stringify(workEntries));
+
+    // Mettre à jour l'affichage
+    generateCalendar();
+    displayMonthEntries();
+    updateSummary();
+
+    // Fermer le modal et afficher un message système
+    closeEditEntryModal();
+    showSystemMessage("Entrée modifiée avec succès !");
 }
 
 // Afficher les entrées d'un jour spécifique
 function showDayEntries(day, entries) {
     if (entries.length === 0) {
-        showSystemMessage("Aucune entrée pour ce jour", true);
+        let message = `Aucune entrée pour le ${day}/${currentMonth + 1}/${currentYear}`;
+        showSystemMessage(message, true); // true pour le style erreur (rouge)
         return;
     }
 
-    let message = `Entrées pour le ${day}/${currentMonth + 1} :\n\n`;
+    let message = `Entrées pour le ${day}/${currentMonth + 1}/${currentYear} :\n\n`;
+    let entryIds = []; // Stocker les IDs des entrées pour le bouton modifier
+
     entries.forEach((entry) => {
+        entryIds.push(entry.id); // Ajouter l'ID à la liste
         const hours = calculateHours(entry);
         let dateInfo = "";
 
@@ -546,14 +778,81 @@ function showDayEntries(day, entries) {
             dateInfo = ` (du ${new Date(entry.date).toLocaleDateString("fr-FR")} au ${endDate.toLocaleDateString("fr-FR")})`;
         }
 
-        message += `${entry.startTime} - ${entry.endTime} (${hours.toFixed(1)}h) - ${getTypeLabel(entry.type)}${dateInfo}\n`;
+        if (entry.type === "leave") {
+            message += `📅 Congé/Absence${dateInfo}\n`;
+        } else {
+            message += `⏰ ${entry.startTime} - ${entry.endTime} (${hours.toFixed(1)}h) - ${getTypeLabel(entry.type)}${dateInfo}\n`;
+        }
+
         if (entry.notes) {
-            message += `Notes: ${entry.notes}\n`;
+            message += `📝 Notes: ${entry.notes}\n`;
         }
         message += "\n";
     });
 
-    alert(message);
+    // Afficher le modal avec le bouton modifier
+    showDayDetailsModal(message, `Détails du ${day}/${currentMonth + 1}`, entryIds);
+}
+
+// Fonction pour afficher le modal avec bouton modifier
+function showDayDetailsModal(message, title, entryIds) {
+    document.getElementById("infoTitle").textContent = title;
+    document.getElementById("infoMessage").textContent = message;
+
+    // Remplacer le bouton OK par des boutons Modifier et OK (Modifier à gauche, OK à droite)
+    const formActions = document.querySelector("#infoModal .form-actions");
+
+    // Supprimer l'ancien bouton OK
+    formActions.innerHTML = "";
+
+    // Si il y a des entrées, ajouter les boutons Modifier et OK
+    if (entryIds.length > 0) {
+        formActions.innerHTML = `
+            <button class="btn-save" onclick="editFirstEntry('${entryIds[0]}')">Modifier</button>
+            <button class="btn-cancel" onclick="closeInfoModal()">OK</button>
+        `;
+    } else {
+        formActions.innerHTML = '<button class="btn-cancel" onclick="closeInfoModal()">OK</button>';
+    }
+
+    const modal = document.getElementById("infoModal");
+    modal.style.display = "flex";
+
+    // Changer la couleur du titre
+    const infoTitle = document.getElementById("infoTitle");
+    infoTitle.style.color = "#00ffcc";
+}
+
+// Fonction pour modifier la première entrée du jour
+function editFirstEntry(id) {
+    closeInfoModal(); // Fermer le modal des détails
+    editEntry(id); // Ouvrir le modal d'édition
+}
+
+// Afficher le modal d'information
+function showInfoMessage(message, title = "Information", isError = false) {
+    document.getElementById("infoTitle").textContent = title;
+    document.getElementById("infoMessage").textContent = message;
+
+    // Réinitialiser les boutons (par défaut juste OK)
+    const formActions = document.querySelector("#infoModal .form-actions");
+    formActions.innerHTML = '<button class="btn-cancel" onclick="closeInfoModal()">OK</button>';
+
+    const modal = document.getElementById("infoModal");
+    modal.style.display = "flex";
+
+    // Changer la couleur du titre pour les erreurs
+    const infoTitle = document.getElementById("infoTitle");
+    if (isError) {
+        infoTitle.style.color = "#ff5555";
+    } else {
+        infoTitle.style.color = "#00ffcc";
+    }
+}
+
+// Fermer le modal d'information
+function closeInfoModal() {
+    document.getElementById("infoModal").style.display = "none";
 }
 
 // Afficher le modal d'importation
@@ -561,7 +860,7 @@ function showImportModal() {
     document.getElementById("importModal").style.display = "flex";
     document.getElementById("fileImport").value = "";
     document.getElementById("mergeData").checked = true;
-    toggleButtons(); // Replier les boutons
+    toggleButtons();
 }
 
 // Fermer le modal d'importation
@@ -602,16 +901,18 @@ function importData() {
                 return;
             }
 
+            let message = "";
+
             // Fusionner ou remplacer les données
             if (mergeData) {
                 // Fusionner sans doublons (basé sur l'ID)
                 const existingIds = new Set(workEntries.map((entry) => entry.id));
                 const newEntries = importedData.filter((entry) => !existingIds.has(entry.id));
                 workEntries = [...workEntries, ...newEntries];
-                showSystemMessage(`${newEntries.length} nouvelles entrées importées (fusion)`);
+                message = `${newEntries.length} nouvelles entrées importées (fusion)`;
             } else {
                 workEntries = importedData;
-                showSystemMessage(`${importedData.length} entrées importées (remplacement)`);
+                message = `${importedData.length} entrées importées (remplacement)`;
             }
 
             // Sauvegarder dans le localStorage
@@ -623,6 +924,7 @@ function importData() {
             updateSummary();
 
             closeImportModal();
+            showSystemMessage(message);
         } catch (error) {
             console.error("Erreur d'importation:", error);
             showSystemMessage("Erreur lors de l'importation du fichier", true);
@@ -651,22 +953,31 @@ function showStatsModal() {
         );
     });
 
+    // Compter les jours travaillés (exclure les congés)
     const daysWorkedSet = new Set();
     monthEntries.forEach((entry) => {
-        daysWorkedSet.add(entry.date);
-        if (entry.endDate) {
-            daysWorkedSet.add(entry.endDate);
+        if (entry.type !== "leave") {
+            daysWorkedSet.add(entry.date);
+            if (entry.endDate) {
+                daysWorkedSet.add(entry.endDate);
+            }
         }
     });
     const daysWorked = daysWorkedSet.size;
 
+    // Calculer les heures totales (exclure les congés)
     const totalHours = monthEntries.reduce((sum, entry) => {
-        return sum + calculateHours(entry);
+        if (entry.type !== "leave") {
+            return sum + calculateHours(entry);
+        }
+        return sum;
     }, 0);
 
     const avgHours = daysWorked > 0 ? (totalHours / daysWorked).toFixed(1) : 0;
+
+    // Calculer les heures supplémentaires (night, weekend, overtime)
     const overtimeHours = monthEntries
-        .filter((entry) => entry.type !== "normal")
+        .filter((entry) => entry.type === "overtime" || entry.type === "night" || entry.type === "weekend")
         .reduce((sum, entry) => sum + calculateHours(entry), 0);
 
     const overtimePercent = totalHours > 0 ? ((overtimeHours / totalHours) * 100).toFixed(0) : 0;
@@ -680,7 +991,7 @@ function showStatsModal() {
     generateChart();
 
     modal.style.display = "flex";
-    toggleButtons(); // Replier les boutons
+    toggleButtons();
 }
 
 // Fermer le modal des statistiques
@@ -697,7 +1008,7 @@ function generateChart() {
         window.hoursChartInstance.destroy();
     }
 
-    // Calculer les heures par semaine
+    // Calculer les heures par semaine (exclure les congés)
     const weeklyHours = calculateWeeklyHours();
 
     window.hoursChartInstance = new Chart(ctx, {
@@ -735,11 +1046,13 @@ function generateChart() {
     });
 }
 
-// Calculer les heures par semaine
+// Calculer les heures par semaine (exclure les congés)
 function calculateWeeklyHours() {
     const monthEntries = workEntries.filter((entry) => {
         const entryDate = new Date(entry.date);
-        return entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear;
+        return (
+            entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear && entry.type !== "leave"
+        );
     });
 
     const weeklyHours = {};
@@ -759,7 +1072,10 @@ function calculateWeeklyHours() {
     const labels = weeks.map((week) => `Semaine ${week}`);
     const hours = weeks.map((week) => weeklyHours[week]);
 
-    return { labels, hours };
+    return {
+        labels,
+        hours
+    };
 }
 
 // Obtenir le numéro de semaine
@@ -784,6 +1100,11 @@ function exportData() {
     showSystemMessage("Données exportées avec succès !");
 }
 
+// Fonction de rafraîchissement de la page
+function refreshPage() {
+    location.reload();
+}
+
 // Afficher un message système
 function showSystemMessage(message, isError = false) {
     const existingMsg = document.querySelector(".system-message");
@@ -802,11 +1123,6 @@ function showSystemMessage(message, isError = false) {
         msg.style.opacity = "0";
         setTimeout(() => msg.remove(), 500);
     }, 3000);
-}
-
-// Fonction de rafraîchissement de la page
-function refreshPage() {
-    location.reload();
 }
 
 // Démarrer l'application
