@@ -836,6 +836,63 @@ input[type="file"].form-input {
     box-shadow: 0 2px 12px rgba(255, 173, 173, 0.4);
 }
 
+/* ==================== CORRECTIONS iOS ==================== */
+@supports (-webkit-touch-callout: none) {
+    /* Styles spécifiques pour iOS */
+    .form-input[type="date"],
+    .form-input[type="time"],
+    .form-input[type="datetime-local"] {
+        min-height: 44px; /* Taille minimale pour les éléments cliquables sur iOS */
+        font-size: 16px; /* Empêche le zoom automatique sur iOS */
+        -webkit-appearance: none;
+        appearance: none;
+    }
+
+    /* Correction pour les selects sur iOS */
+    .form-input[type="date"]::-webkit-date-and-time-value,
+    .form-input[type="time"]::-webkit-date-and-time-value {
+        text-align: left;
+        margin-left: 0;
+    }
+
+    /* Empêcher le redimensionnement automatique */
+    input,
+    select,
+    textarea {
+        font-size: 16px !important;
+    }
+
+    /* Correction pour les modals sur iOS */
+    .modal-content {
+        -webkit-overflow-scrolling: touch;
+        max-height: 85vh;
+    }
+}
+
+/* Styles généraux pour tous les appareils */
+.form-input[type="date"],
+.form-input[type="time"] {
+    position: relative;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+/* Icône personnalisée pour les champs date/time */
+.form-input[type="date"]::-webkit-calendar-picker-indicator,
+.form-input[type="time"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.7;
+    cursor: pointer;
+}
+
+.form-input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.form-input[type="time"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
 /* ==================== RESPONSIVE ==================== */
 @media (max-width: 768px) {
     body {
@@ -917,6 +974,36 @@ input[type="file"].form-input {
     .entry-delete {
         width: 35px;
         height: 35px;
+    }
+
+    /* Correction spécifique pour iOS - champs de formulaire */
+    .form-input[type="date"],
+    .form-input[type="time"],
+    .form-input[type="datetime-local"] {
+        font-size: 16px; /* Important pour éviter le zoom */
+        height: 44px; /* Taille minimale recommandée pour iOS */
+        padding: 12px 10px; /* Plus de padding pour faciliter le clic */
+    }
+
+    /* Ajustement spécifique pour les selects */
+    select.form-input {
+        height: 44px;
+        font-size: 16px;
+    }
+
+    /* S'assurer que les modals s'adaptent */
+    .modal-content {
+        width: 95vw;
+        max-width: 95vw;
+        margin: 10px;
+        padding: 15px;
+    }
+
+    /* Ajustement spécifique pour les champs dans les modals sur iOS */
+    #addEntryModal .form-input,
+    #editEntryModal .form-input {
+        min-height: 44px;
+        line-height: 1.4;
     }
 }
 
