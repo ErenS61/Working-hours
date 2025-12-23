@@ -766,12 +766,13 @@ function showDayEntries(day, entries) {
     }
 
     let message = `Entrées pour le ${day}/${currentMonth + 1}/${currentYear} :\n\n`;
-    let entryIds = []; // Stocker les IDs des entrées pour le bouton modifier
+    let entryIds = []; // Stocker les IDs des entrées pour les boutons
 
-    entries.forEach((entry) => {
+    entries.forEach((entry, index) => {
         entryIds.push(entry.id); // Ajouter l'ID à la liste
         const hours = calculateHours(entry);
         let dateInfo = "";
+        let entryNumber = index + 1;
 
         if (entry.endDate && entry.endDate !== entry.date) {
             const endDate = new Date(entry.endDate);
@@ -779,35 +780,36 @@ function showDayEntries(day, entries) {
         }
 
         if (entry.type === "leave") {
-            message += `📅 Congé/Absence${dateInfo}\n`;
+            message += `${entryNumber}. 📅 Congé/Absence${dateInfo}\n`;
         } else {
-            message += `⏰ ${entry.startTime} - ${entry.endTime} (${hours.toFixed(1)}h) - ${getTypeLabel(entry.type)}${dateInfo}\n`;
+            message += `${entryNumber}. ⏰ ${entry.startTime} - ${entry.endTime} (${hours.toFixed(1)}h) - ${getTypeLabel(entry.type)}${dateInfo}\n`;
         }
 
         if (entry.notes) {
-            message += `📝 Notes: ${entry.notes}\n`;
+            message += `   📝 Notes: ${entry.notes}\n`;
         }
         message += "\n";
     });
 
-    // Afficher le modal avec le bouton modifier
+    // Afficher le modal avec les boutons modifier et supprimer
     showDayDetailsModal(message, `Détails du ${day}/${currentMonth + 1}`, entryIds);
 }
 
-// Fonction pour afficher le modal avec bouton modifier
+// Fonction pour afficher le modal avec bouton modifier et supprimer
 function showDayDetailsModal(message, title, entryIds) {
     document.getElementById("infoTitle").textContent = title;
     document.getElementById("infoMessage").textContent = message;
 
-    // Remplacer le bouton OK par des boutons Modifier et OK (Modifier à gauche, OK à droite)
+    // Remplacer les boutons par Modifier, Supprimer et OK
     const formActions = document.querySelector("#infoModal .form-actions");
 
     // Supprimer l'ancien bouton OK
     formActions.innerHTML = "";
 
-    // Si il y a des entrées, ajouter les boutons Modifier et OK
+    // Si il y a des entrées, ajouter les boutons Modifier, Supprimer et OK
     if (entryIds.length > 0) {
         formActions.innerHTML = `
+            <button class="btn-delete" onclick="deleteFirstEntry('${entryIds[0]}')">Supprimer</button>
             <button class="btn-save" onclick="editFirstEntry('${entryIds[0]}')">Modifier</button>
             <button class="btn-cancel" onclick="closeInfoModal()">OK</button>
         `;
@@ -827,6 +829,12 @@ function showDayDetailsModal(message, title, entryIds) {
 function editFirstEntry(id) {
     closeInfoModal(); // Fermer le modal des détails
     editEntry(id); // Ouvrir le modal d'édition
+}
+
+// Fonction pour supprimer la première entrée du jour
+function deleteFirstEntry(id) {
+    closeInfoModal(); // Fermer le modal des détails
+    showDeleteConfirm(id); // Ouvrir le modal de confirmation de suppression
 }
 
 // Afficher le modal d'information
@@ -1011,6 +1019,80 @@ function generateChart() {
     // Calculer les heures par semaine (exclure les congés)
     const weeklyHours = calculateWeeklyHours();
 
+    // Si pas de données, afficher un message
+    if (weeklyHours.labels.length === 0 || weeklyHours.hours.every((h) => h === 0)) {
+        // Créer un graphique vide avec un message
+        window.hoursChartInstance = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: ["Aucune donnée"],
+                datasets: [
+                    {
+                        label: "Heures travaillées",
+                        data: [0],
+                        backgroundColor: "#333",
+                        borderColor: "#555",
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: "Heures"
+                        },
+                        ticks: {
+                            callback: function (value) {
+                                return value + "h";
+                            }
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: "Semaines"
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: false
+                    }
+                }
+            },
+            plugins: [
+                {
+                    id: "noData",
+                    afterDraw: function (chart) {
+                        if (chart.data.datasets[0].data[0] === 0) {
+                            const ctx = chart.ctx;
+                            const width = chart.width;
+                            const height = chart.height;
+
+                            chart.clear();
+                            ctx.save();
+                            ctx.textAlign = "center";
+                            ctx.textBaseline = "middle";
+                            ctx.font = "16px Gotham";
+                            ctx.fillStyle = "#aaa";
+                            ctx.fillText("Aucune donnée ce mois-ci", width / 2, height / 2);
+                            ctx.restore();
+                        }
+                    }
+                }
+            ]
+        });
+        return;
+    }
+
+    // Sinon, créer le graphique normal
     window.hoursChartInstance = new Chart(ctx, {
         type: "bar",
         data: {
@@ -1033,6 +1115,11 @@ function generateChart() {
                     title: {
                         display: true,
                         text: "Heures"
+                    },
+                    ticks: {
+                        callback: function (value) {
+                            return value + "h";
+                        }
                     }
                 },
                 x: {
@@ -1055,6 +1142,14 @@ function calculateWeeklyHours() {
         );
     });
 
+    // Si pas d'entrées, retourner des tableaux vides
+    if (monthEntries.length === 0) {
+        return {
+            labels: [],
+            hours: []
+        };
+    }
+
     const weeklyHours = {};
 
     monthEntries.forEach((entry) => {
@@ -1068,8 +1163,13 @@ function calculateWeeklyHours() {
         weeklyHours[weekNumber] += hours;
     });
 
-    const weeks = Object.keys(weeklyHours).sort((a, b) => a - b);
-    const labels = weeks.map((week) => `Semaine ${week}`);
+    // Trier les semaines
+    const weeks = Object.keys(weeklyHours)
+        .map((w) => parseInt(w))
+        .sort((a, b) => a - b);
+
+    // Afficher simplement les numéros de semaine
+    const labels = weeks.map((week) => `Sem. ${week}`);
     const hours = weeks.map((week) => weeklyHours[week]);
 
     return {
