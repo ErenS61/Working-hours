@@ -1502,6 +1502,136 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             return yearA === yearB ? monthA - monthB : yearA - yearB;
         });
         
+        // CORRECTION : Fonction helper pour créer les données de tableau
+        const createTableData = (monthEntries, includeNotesParam) => {
+            return monthEntries.map(entry => {
+                const entryDate = new Date(entry.date);
+                const dateStr = entryDate.toLocaleDateString('fr-FR', { 
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+                
+                let timeInfo = `${entry.startTime} - ${entry.endTime}`;
+                if (entry.endDate && entry.endDate !== entry.date) {
+                    timeInfo += ' (nuit)';
+                }
+                
+                const hours = calculateHours(entry);
+                const typeLabel = getTypeLabel(entry.type);
+                
+                const row = [
+                    dateStr,
+                    timeInfo,
+                    `${hours.toFixed(1)} h`,
+                    typeLabel
+                ];
+                
+                if (includeNotesParam) {
+                    row.push(entry.notes ? entry.notes.substring(0, 80) : '');
+                }
+                
+                return row;
+            });
+        };
+        
+        // CORRECTION : Fonction helper pour la configuration didParseCell
+        const createDidParseCellFunction = (includeNotesParam) => {
+            return function(data) {
+                const cellValue = data.cell.raw || data.cell.text[0] || '';
+                
+                // Tous les en-têtes centrés
+                if (data.row.index === 0) {
+                    data.cell.styles.halign = 'center';
+                    return;
+                }
+                
+                // CORRECTION : Colonne Type - appliquer à TOUTES les lignes
+                if (data.column.index === 3) {
+                    // CORRECTION : Pas de condition data.row.index > 0, traite TOUTES les lignes
+                    if (cellValue.includes('Normales')) {
+                        data.cell.styles.textColor = [76, 175, 80];
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.halign = 'center';
+                    } else if (cellValue.includes('Suppl.')) {
+                        data.cell.styles.textColor = [255, 152, 0];
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.halign = 'center';
+                    } else if (cellValue.includes('Nuit')) {
+                        data.cell.styles.textColor = [156, 39, 176];
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.halign = 'center';
+                    } else if (cellValue.includes('Week-end')) {
+                        data.cell.styles.textColor = [243, 33, 33];
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.halign = 'center';
+                    } else if (cellValue.includes('Congé')) {
+                        data.cell.styles.textColor = [255, 204, 0];
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.halign = 'center';
+                    }
+                }
+                
+                // Colonne Notes
+                if (includeNotesParam && data.column.index === 4) {
+                    data.cell.styles.fontStyle = 'italic';
+                    data.cell.styles.halign = 'left';
+                    data.cell.styles.overflow = 'linebreak';
+                }
+                
+                // Toutes les autres colonnes centrées
+                if (data.column.index <= 3) {
+                    data.cell.styles.halign = 'center';
+                }
+            };
+        };
+        
+        // CORRECTION : Fonction helper pour didDrawCell
+        const createDidDrawCellFunction = () => {
+            return function(data) {
+                // CORRECTION : Fallback pour s'assurer que la première ligne est stylisée
+                if (data.column.index === 3 && data.row.index > 0) {
+                    const ctx = data.doc.context2d;
+                    const text = data.cell.text[0] || '';
+                    
+                    // Vérifier si le texte n'est pas déjà coloré
+                    if (text && (!data.cell.styles.textColor || data.cell.styles.textColor[0] === 0)) {
+                        let color = null;
+                        
+                        if (text.includes('Normales')) {
+                            color = '#4CAF50';
+                        } else if (text.includes('Suppl.')) {
+                            color = '#FF9800';
+                        } else if (text.includes('Nuit')) {
+                            color = '#9C27B0';
+                        } else if (text.includes('Week-end')) {
+                            color = '#F32121';
+                        } else if (text.includes('Congé')) {
+                            color = '#FFCC00';
+                        }
+                        
+                        // Redessiner le texte avec la couleur si nécessaire
+                        if (color) {
+                            ctx.save();
+                            ctx.fillStyle = color;
+                            ctx.font = 'bold 9px helvetica';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(
+                                text, 
+                                data.cell.x + data.cell.width / 2, 
+                                data.cell.y + data.cell.height / 2 + 1
+                            );
+                            ctx.restore();
+                            
+                            // Effacer le texte original
+                            data.cell.text = [];
+                        }
+                    }
+                }
+            };
+        };
+        
         // Parcourir chaque mois
         for (const monthKey of months) {
             const monthEntries = entriesByMonth[monthKey];
@@ -1532,35 +1662,7 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             
             // ==================== TABLEAU DU MOIS ====================
             // Préparer les données du tableau pour le mois
-            const tableData = monthEntries.map(entry => {
-                const entryDate = new Date(entry.date);
-                const dateStr = entryDate.toLocaleDateString('fr-FR', { 
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric'
-                });
-                
-                let timeInfo = `${entry.startTime} - ${entry.endTime}`;
-                if (entry.endDate && entry.endDate !== entry.date) {
-                    timeInfo += ' (nuit;)';
-                }
-                
-                const hours = calculateHours(entry);
-                const typeLabel = getTypeLabel(entry.type);
-                
-                const row = [
-                    dateStr,
-                    timeInfo,
-                    `${hours.toFixed(1)} h`,
-                    typeLabel
-                ];
-                
-                if (includeNotes) {
-                    row.push(entry.notes ? entry.notes.substring(0, 80) : '');
-                }
-                
-                return row;
-            });
+            const tableData = createTableData(monthEntries, includeNotes);
             
             // En-têtes du tableau
             const headers = ['Date', 'Heures', 'Durée', 'Type'];
@@ -1639,97 +1741,8 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
                     valign: 'middle'
                 },
                 columnStyles: columnStyles,
-                didParseCell: function(data) {
-                    const cellValue = data.cell.raw || data.cell.text[0] || '';
-                    
-                    // Tous les en-têtes centrés
-                    if (data.row.index === 0) {
-                        data.cell.styles.halign = 'center';
-                        return;
-                    }
-                    
-                    // CORRECTION : Colonne Type - appliquer à TOUTES les lignes
-                    if (data.column.index === 3) {
-                        // CORRECTION : Pas de condition data.row.index > 0, traite TOUTES les lignes
-                        if (cellValue.includes('Normales')) {
-                            data.cell.styles.textColor = [76, 175, 80];
-                            data.cell.styles.fontStyle = 'bold';
-                            data.cell.styles.halign = 'center';
-                        } else if (cellValue.includes('Suppl.')) {
-                            data.cell.styles.textColor = [255, 152, 0];
-                            data.cell.styles.fontStyle = 'bold';
-                            data.cell.styles.halign = 'center';
-                        } else if (cellValue.includes('Nuit')) {
-                            data.cell.styles.textColor = [156, 39, 176];
-                            data.cell.styles.fontStyle = 'bold';
-                            data.cell.styles.halign = 'center';
-                        } else if (cellValue.includes('Week-end')) {
-                            data.cell.styles.textColor = [243, 33, 33];
-                            data.cell.styles.fontStyle = 'bold';
-                            data.cell.styles.halign = 'center';
-                        } else if (cellValue.includes('Congé')) {
-                            data.cell.styles.textColor = [255, 204, 0];
-                            data.cell.styles.fontStyle = 'bold';
-                            data.cell.styles.halign = 'center';
-                        }
-                    }
-                    
-                    // Colonne Notes
-                    if (includeNotes && data.column.index === 4) {
-                        data.cell.styles.fontStyle = 'italic';
-                        data.cell.styles.halign = 'left';
-                        data.cell.styles.cellWidth = notesWidth;
-                        data.cell.styles.overflow = 'linebreak';
-                    }
-                    
-                    // Toutes les autres colonnes centrées
-                    if (data.column.index <= 3) {
-                        data.cell.styles.halign = 'center';
-                    }
-                },
-                // CORRECTION : Ajout de didDrawCell pour garantir le style des premières lignes
-                didDrawCell: function(data) {
-                    // CORRECTION : Fallback pour s'assurer que la première ligne est stylisée
-                    if (data.column.index === 3 && data.row.index > 0) {
-                        const ctx = data.doc.context2d;
-                        const text = data.cell.text[0] || '';
-                        
-                        // Vérifier si le texte n'est pas déjà coloré
-                        if (text && (!data.cell.styles.textColor || data.cell.styles.textColor[0] === 0)) {
-                            let color = null;
-                            
-                            if (text.includes('Normales')) {
-                                color = '#4CAF50';
-                            } else if (text.includes('Suppl.')) {
-                                color = '#FF9800';
-                            } else if (text.includes('Nuit')) {
-                                color = '#9C27B0';
-                            } else if (text.includes('Week-end')) {
-                                color = '#F32121';
-                            } else if (text.includes('Congé')) {
-                                color = '#FFCC00';
-                            }
-                            
-                            // Redessiner le texte avec la couleur si nécessaire
-                            if (color) {
-                                ctx.save();
-                                ctx.fillStyle = color;
-                                ctx.font = 'bold 9px helvetica';
-                                ctx.textAlign = 'center';
-                                ctx.textBaseline = 'middle';
-                                ctx.fillText(
-                                    text, 
-                                    data.cell.x + data.cell.width / 2, 
-                                    data.cell.y + data.cell.height / 2 + 1
-                                );
-                                ctx.restore();
-                                
-                                // Effacer le texte original
-                                data.cell.text = [];
-                            }
-                        }
-                    }
-                }
+                didParseCell: createDidParseCellFunction(includeNotes),
+                didDrawCell: createDidDrawCellFunction()
             };
             
             // Créer le tableau du mois
