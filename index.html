@@ -70,6 +70,10 @@
         <i class="fa-solid fa-plus"></i>
       </button>
 
+      <button class="refresh-button" onclick="refreshPage()" title="Rafraîchir">
+        <i class="fa-solid fa-rotate-right"></i>
+      </button>
+
       <button class="add-entry-button" onclick="showAddEntryModal()" id="addEntryButton">
         <i class="fa-solid fa-clock"></i>
       </button>
@@ -78,16 +82,20 @@
         <i class="fa-solid fa-chart-bar"></i>
       </button>
 
-      <button class="refresh-button" onclick="refreshPage()" title="Rafraîchir">
-        <i class="fa-solid fa-rotate-right"></i>
-      </button>
-
       <button class="export-button" onclick="exportData()" id="exportButton">
         <i class="fa-solid fa-download"></i>
       </button>
 
       <button class="import-button" onclick="showImportModal()" id="importButton">
         <i class="fa-solid fa-upload"></i>
+      </button>
+
+      <button class="pdf-button" onclick="showPDFModal()" id="pdfButton" title="Exporter en PDF">
+        <i class="fa-solid fa-file-pdf"></i>
+      </button>
+
+      <button class="delete-all-button" onclick="showDeleteAllConfirm()" id="deleteAllButton" title="Supprimer toutes les entrées">
+        <i class="fa-solid fa-trash"></i>
       </button>
     </div>
 
@@ -238,6 +246,93 @@
       </div>
     </div>
 
+    <!-- Modal de confirmation pour suppression complète -->
+    <div id="deleteAllModal" class="modal">
+      <div class="modal-content small-modal">
+        <h2>⚠️ Confirmation</h2>
+        <p id="deleteAllMessage">
+          Êtes-vous sûr de vouloir supprimer <strong>TOUTES</strong> les entrées de tous les mois ? Cette action est
+          irréversible !
+        </p>
+        <div class="form-actions">
+          <button class="btn-cancel" onclick="closeDeleteAllModal()">Annuler</button>
+          <button class="btn-delete" id="confirmDeleteAllBtn">Tout supprimer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de vérification avec code -->
+    <div id="verifyDeleteModal" class="modal">
+      <div class="modal-content small-modal">
+        <h2>⚠️ Vérification finale</h2>
+        <p>Pour confirmer la suppression complète, veuillez entrer le code suivant :</p>
+
+        <div class="form-group">
+          <div class="verification-code-container">
+            <div id="verificationCode" class="verification-code-display">0000</div>
+            <small class="verification-hint">Entrez ce code ci-dessous pour confirmer</small>
+          </div>
+
+          <label for="userVerificationCode">Code de vérification :</label>
+          <input
+            type="text"
+            id="userVerificationCode"
+            class="form-input verification-code-input"
+            placeholder="Entrez les 4 chiffres"
+            maxlength="4"
+            inputmode="numeric"
+            pattern="[0-9]*" />
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-cancel" onclick="closeVerifyModal()">Annuler</button>
+          <button class="btn-delete" id="confirmVerifyBtn" disabled>Vérifier et supprimer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal pour l'export PDF -->
+    <div id="pdfModal" class="modal">
+      <div class="modal-content">
+        <button class="close-modal" onclick="closePDFModal()">&times;</button>
+        <h2>📄 Exporter en PDF</h2>
+
+        <div class="form-group">
+          <label for="pdfStartDate">Date de début :</label>
+          <input type="date" id="pdfStartDate" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label for="pdfEndDate">Date de fin :</label>
+          <input type="date" id="pdfEndDate" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="includeSummary" checked />
+            <label for="includeSummary">Inclure le résumé des heures</label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="includeNotes" checked />
+            <label for="includeNotes">Inclure les notes</label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="pdfTitle">Titre du document :</label>
+          <input type="text" id="pdfTitle" class="form-input" value="Suivi des Heures de Travail" />
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-cancel" onclick="closePDFModal()">Annuler</button>
+          <button class="btn-save" onclick="generatePDF()">Générer le PDF</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal d'édition d'entrée -->
     <div id="editEntryModal" class="modal">
       <div class="modal-content">
@@ -295,6 +390,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script>
       const mainScript = document.createElement("script");
       mainScript.src = "script.js?v=" + new Date().getTime();

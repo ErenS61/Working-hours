@@ -7,6 +7,8 @@ let buttonsExpanded = false;
 const buttonDelay = 100;
 let entryToDelete = null;
 let entryToEdit = null;
+let verificationCode = "";
+let deleteAllRequested = false;
 
 // Initialisation de l'application
 function initApp() {
@@ -1223,6 +1225,619 @@ function showSystemMessage(message, isError = false) {
         msg.style.opacity = "0";
         setTimeout(() => msg.remove(), 500);
     }, 3000);
+}
+
+// ==================== FONCTIONS POUR LA SUPPRESSION COMPLÈTE ====================
+
+// Afficher le modal de confirmation pour suppression complète
+function showDeleteAllConfirm() {
+    // Afficher le modal de confirmation
+    document.getElementById("deleteAllModal").style.display = "flex";
+
+    // Configurer le bouton de confirmation
+    const confirmBtn = document.getElementById("confirmDeleteAllBtn");
+    confirmBtn.onclick = function () {
+        closeDeleteAllModal();
+        showVerificationModal();
+    };
+
+    toggleButtons(); // Replier les boutons flottants
+}
+
+// Fermer le modal de suppression complète
+function closeDeleteAllModal() {
+    document.getElementById("deleteAllModal").style.display = "none";
+}
+
+// Afficher le modal de vérification avec code
+function showVerificationModal() {
+    // Générer un code à 4 chiffres
+    verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
+
+    // Afficher le code
+    document.getElementById("verificationCode").textContent = verificationCode;
+
+    // Réinitialiser le champ de saisie
+    document.getElementById("userVerificationCode").value = "";
+
+    // Désactiver le bouton de vérification
+    document.getElementById("confirmVerifyBtn").disabled = true;
+
+    // Ajouter l'écouteur d'événement pour la saisie
+    const inputField = document.getElementById("userVerificationCode");
+    const verifyBtn = document.getElementById("confirmVerifyBtn");
+
+    inputField.oninput = function () {
+        // Nettoyer l'entrée (uniquement chiffres)
+        this.value = this.value.replace(/\D/g, "");
+
+        // Vérifier si le code correspond
+        if (this.value === verificationCode) {
+            verifyBtn.disabled = false;
+        } else {
+            verifyBtn.disabled = true;
+        }
+    };
+
+    // Configurer le bouton de vérification
+    verifyBtn.onclick = function () {
+        if (document.getElementById("userVerificationCode").value === verificationCode) {
+            deleteAllEntries();
+            closeVerifyModal();
+        }
+    };
+
+    // Focus sur le champ de saisie
+    inputField.focus();
+
+    // Afficher le modal
+    document.getElementById("verifyDeleteModal").style.display = "flex";
+}
+
+// Fermer le modal de vérification
+function closeVerifyModal() {
+    document.getElementById("verifyDeleteModal").style.display = "none";
+    verificationCode = "";
+}
+
+// Supprimer toutes les entrées
+function deleteAllEntries() {
+    // Vider le tableau des entrées
+    workEntries = [];
+
+    // Supprimer du localStorage
+    localStorage.removeItem("workEntries");
+
+    // Mettre à jour l'affichage
+    displayMonthEntries();
+    updateSummary();
+    generateCalendar();
+
+    // Afficher un message dans un modal d'information
+    showInfoMessage("Toutes les entrées ont été supprimées définitivement.", "Suppression terminée", false);
+
+    console.log("Toutes les entrées ont été supprimées");
+}
+
+// Export fichier PDF
+
+// Variables globales (ajoutez en haut avec les autres)
+const { jsPDF } = window.jspdf;
+
+// ==================== FONCTIONS PDF ====================
+
+// Afficher le modal PDF
+function showPDFModal() {
+    console.log("showPDFModal appelé");
+
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+    document.getElementById("pdfStartDate").value = firstDay.toISOString().split("T")[0];
+    document.getElementById("pdfEndDate").value = lastDay.toISOString().split("T")[0];
+    document.getElementById("includeSummary").checked = true;
+    document.getElementById("includeNotes").checked = true;
+    document.getElementById("pdfTitle").value =
+        `Suivi des Heures - ${today.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`;
+
+    document.getElementById("pdfModal").style.display = "flex";
+    toggleButtons();
+}
+
+// Fermer le modal PDF
+function closePDFModal() {
+    document.getElementById("pdfModal").style.display = "none";
+}
+
+// Générer le PDF
+function generatePDF() {
+    console.log("generatePDF appelé");
+
+    const startDate = document.getElementById("pdfStartDate").value;
+    const endDate = document.getElementById("pdfEndDate").value;
+    const includeSummary = document.getElementById("includeSummary").checked;
+    const includeNotes = document.getElementById("includeNotes").checked;
+    const pdfTitle = document.getElementById("pdfTitle").value || "Suivi des Heures de Travail";
+
+    if (!startDate || !endDate) {
+        showSystemMessage("Veuillez sélectionner une période", true);
+        return;
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+        showSystemMessage("La date de début doit être antérieure à la date de fin", true);
+        return;
+    }
+
+    // Filtrer les entrées dans la période sélectionnée
+    const filteredEntries = workEntries
+        .filter((entry) => {
+            const entryDate = new Date(entry.date);
+            const entryEndDate = entry.endDate ? new Date(entry.endDate) : entryDate;
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+
+            // Vérifier si l'entrée est dans la période (début ou fin)
+            return (entryDate >= start && entryDate <= end) || (entryEndDate >= start && entryEndDate <= end);
+        })
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (filteredEntries.length === 0) {
+        showSystemMessage("Aucune entrée dans la période sélectionnée", true);
+        return;
+    }
+
+    // Créer le PDF
+    createPDF(filteredEntries, startDate, endDate, includeSummary, includeNotes, pdfTitle);
+    closePDFModal();
+}
+
+// Créer le document PDF avec organisation par mois
+function createPDF(entries, startDate, endDate, includeSummary, includeNotes, title) {
+    console.log("Création du PDF avec", entries.length, "entrées");
+    
+    try {
+        const doc = new jsPDF('p', 'mm', 'a4');
+        
+        // Configuration
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 15;
+        let yPosition = margin;
+        
+        // ==================== EN-TÊTE ====================
+        doc.setFontSize(20);
+        doc.setTextColor(0, 150, 136); // Teal
+        doc.setFont("helvetica", "bold");
+        doc.text("SUIVI DES HEURES DE TRAVAIL", pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 8;
+        
+        doc.setFontSize(12);
+        doc.setTextColor(100, 100, 100);
+        doc.setFont("helvetica", "normal");
+        doc.text(title, pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 10;
+        
+        // ==================== LIGNE PÉRIODE ET DATE ====================
+        const startFormatted = new Date(startDate).toLocaleDateString('fr-FR');
+        const endFormatted = new Date(endDate).toLocaleDateString('fr-FR');
+        const periodText = `Période : ${startFormatted} - ${endFormatted}`;
+        
+        const now = new Date();
+        const genDate = now.toLocaleDateString('fr-FR');
+        const genTime = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const genText = `Généré le ${genDate} à ${genTime}`;
+        
+        doc.setFontSize(10);
+        doc.setTextColor(150, 150, 150);
+        
+        // Période à gauche
+        doc.text(periodText, margin, yPosition);
+        
+        // Date de génération à droite
+        doc.text(genText, pageWidth - margin, yPosition, { align: 'right' });
+        
+        yPosition += 20;
+        
+        // ==================== STATISTIQUES GLOBALES ====================
+        if (includeSummary) {
+            const summary = calculatePeriodSummary(entries);
+            
+            // Titre à GAUCHE
+            doc.setFontSize(14);
+            doc.setTextColor(0, 0, 0);
+            doc.setFont("helvetica", "bold");
+            doc.text("Résumé Global", margin, yPosition);
+            yPosition += 8;
+            
+            // Ligne de séparation
+            doc.setDrawColor(0, 150, 136);
+            doc.setLineWidth(0.5);
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            yPosition += 10;
+            
+            // Tableau de statistiques simple
+            const summaryData = [
+                ['Heures totales', `${summary.totalHours.toFixed(1)} h`],
+                ['Heures normales', `${summary.normalHours.toFixed(1)} h`],
+                ['Heures supplémentaires', `${summary.overtimeHours.toFixed(1)} h`],
+                ['Jours travaillés', `${summary.daysWorked} jours`]
+            ];
+            
+            // Dessiner manuellement le tableau des stats
+            summaryData.forEach((row, index) => {
+                const rowY = yPosition + (index * 6);
+                
+                // Label
+                doc.setFontSize(10);
+                doc.setTextColor(80, 80, 80);
+                doc.setFont("helvetica", "normal");
+                doc.text(row[0], margin + 5, rowY + 4);
+                
+                // Valeur
+                doc.setFontSize(10);
+                doc.setTextColor(0, 0, 0);
+                doc.setFont("helvetica", "bold");
+                doc.text(row[1], pageWidth - margin - 5, rowY + 4, { align: 'right' });
+                
+                // Ligne séparatrice
+                if (index < summaryData.length - 1) {
+                    doc.setDrawColor(240, 240, 240);
+                    doc.setLineWidth(0.2);
+                    doc.line(margin, rowY + 5, pageWidth - margin, rowY + 5);
+                }
+            });
+            
+            yPosition += (summaryData.length * 6) + 20;
+        }
+        
+        // ==================== ORGANISATION PAR MOIS ====================
+        // Grouper les entrées par mois
+        const entriesByMonth = groupEntriesByMonth(entries);
+        
+        // Trier les mois chronologiquement
+        const months = Object.keys(entriesByMonth).sort((a, b) => {
+            const [yearA, monthA] = a.split('-').map(Number);
+            const [yearB, monthB] = b.split('-').map(Number);
+            return yearA === yearB ? monthA - monthB : yearA - yearB;
+        });
+        
+        // Parcourir chaque mois
+        for (const monthKey of months) {
+            const monthEntries = entriesByMonth[monthKey];
+            const [year, month] = monthKey.split('-').map(Number);
+            const monthName = getMonthName(month);
+            
+            console.log(`Traitement du mois: ${monthName} ${year} (${monthEntries.length} entrées)`);
+            
+            // Vérifier si on a besoin d'une nouvelle page
+            if (yPosition > 250) {
+                doc.addPage();
+                yPosition = margin;
+            }
+            
+            // ==================== TITRE DU MOIS ====================
+            // Titre du mois (un peu plus petit)
+            doc.setFontSize(13); // Un peu plus petit que 14
+            doc.setTextColor(0, 0, 0);
+            doc.setFont("helvetica", "bold");
+            doc.text(`${monthName} ${year}`, margin, yPosition);
+            yPosition += 7;
+            
+            // Ligne de séparation colorée
+            doc.setDrawColor(66, 139, 202); // Bleu comme les en-têtes de tableau
+            doc.setLineWidth(0.5);
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            yPosition += 10;
+            
+            // ==================== TABLEAU DU MOIS ====================
+            // Préparer les données du tableau pour le mois
+            const tableData = monthEntries.map(entry => {
+                const entryDate = new Date(entry.date);
+                const dateStr = entryDate.toLocaleDateString('fr-FR', { 
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+                
+                let timeInfo = `${entry.startTime} - ${entry.endTime}`;
+                if (entry.endDate && entry.endDate !== entry.date) {
+                    timeInfo += ' (nuit;)';
+                }
+                
+                const hours = calculateHours(entry);
+                const typeLabel = getTypeLabel(entry.type);
+                
+                const row = [
+                    dateStr,
+                    timeInfo,
+                    `${hours.toFixed(1)} h`,
+                    typeLabel
+                ];
+                
+                if (includeNotes) {
+                    row.push(entry.notes ? entry.notes.substring(0, 80) : '');
+                }
+                
+                return row;
+            });
+            
+            // En-têtes du tableau
+            const headers = ['Date', 'Heures', 'Durée', 'Type'];
+            if (includeNotes) headers.push('Notes');
+            
+            // CORRECTION : Calcul des largeurs avec colonne Heures allongée
+            const availableWidth = pageWidth - (margin * 2);
+            
+            // CORRECTION : Largeurs ajustées - Heures allongée, autres réduites
+            const fixedWidths = [30, 35, 21, 25]; // Date: 20, Heures: 40 (allongée), Durée: 16, Type: 20
+            const totalFixedWidth = fixedWidths.reduce((sum, width) => sum + width, 0);
+            const notesWidth = includeNotes ? availableWidth - totalFixedWidth : 0;
+            
+            console.log(`Largeurs pour ${monthName}: Total: ${availableWidth}mm, Fixe: ${totalFixedWidth}mm, Notes: ${notesWidth}mm, Heures: ${fixedWidths[1]}mm`);
+            
+            // Définir les styles de colonnes
+            const columnStyles = {};
+            
+            // Colonnes centrées (sauf notes)
+            columnStyles[0] = { 
+                cellWidth: fixedWidths[0], 
+                halign: 'center',
+                valign: 'middle'
+            };
+            columnStyles[1] = { 
+                cellWidth: fixedWidths[1], 
+                halign: 'center',
+                valign: 'middle'
+            };
+            columnStyles[2] = { 
+                cellWidth: fixedWidths[2], 
+                halign: 'center',
+                valign: 'middle'
+            };
+            columnStyles[3] = { 
+                cellWidth: fixedWidths[3], 
+                halign: 'center',
+                valign: 'middle'
+            };
+            
+            // Colonne Notes
+            if (includeNotes) {
+                columnStyles[4] = { 
+                    cellWidth: notesWidth, 
+                    fontStyle: 'italic', 
+                    halign: 'left',
+                    valign: 'middle',
+                    overflow: 'linebreak'
+                };
+            }
+            
+            // Configuration du tableau du mois
+            const autoTableConfig = {
+                startY: yPosition,
+                head: [headers],
+                body: tableData,
+                margin: { left: margin, right: margin },
+                theme: 'striped',
+                headStyles: { 
+                    fillColor: [66, 139, 202], 
+                    textColor: 255,
+                    fontStyle: 'bold',
+                    fontSize: 10,
+                    halign: 'center',
+                    cellPadding: 3,
+                    valign: 'middle'
+                },
+                styles: { 
+                    fontSize: 9, 
+                    cellPadding: 3,
+                    overflow: 'linebreak',
+                    halign: 'center',
+                    minCellHeight: 6,
+                    lineColor: [220, 220, 220],
+                    lineWidth: 0.1,
+                    valign: 'middle'
+                },
+                columnStyles: columnStyles,
+                didParseCell: function(data) {
+                    const cellValue = data.cell.raw || data.cell.text[0] || '';
+                    
+                    // Tous les en-têtes centrés
+                    if (data.row.index === 0) {
+                        data.cell.styles.halign = 'center';
+                        return;
+                    }
+                    
+                    // CORRECTION : Colonne Type - appliquer à TOUTES les lignes
+                    if (data.column.index === 3) {
+                        // CORRECTION : Pas de condition data.row.index > 0, traite TOUTES les lignes
+                        if (cellValue.includes('Normales')) {
+                            data.cell.styles.textColor = [76, 175, 80];
+                            data.cell.styles.fontStyle = 'bold';
+                            data.cell.styles.halign = 'center';
+                        } else if (cellValue.includes('Suppl.')) {
+                            data.cell.styles.textColor = [255, 152, 0];
+                            data.cell.styles.fontStyle = 'bold';
+                            data.cell.styles.halign = 'center';
+                        } else if (cellValue.includes('Nuit')) {
+                            data.cell.styles.textColor = [156, 39, 176];
+                            data.cell.styles.fontStyle = 'bold';
+                            data.cell.styles.halign = 'center';
+                        } else if (cellValue.includes('Week-end')) {
+                            data.cell.styles.textColor = [243, 33, 33];
+                            data.cell.styles.fontStyle = 'bold';
+                            data.cell.styles.halign = 'center';
+                        } else if (cellValue.includes('Congé')) {
+                            data.cell.styles.textColor = [255, 204, 0];
+                            data.cell.styles.fontStyle = 'bold';
+                            data.cell.styles.halign = 'center';
+                        }
+                    }
+                    
+                    // Colonne Notes
+                    if (includeNotes && data.column.index === 4) {
+                        data.cell.styles.fontStyle = 'italic';
+                        data.cell.styles.halign = 'left';
+                        data.cell.styles.cellWidth = notesWidth;
+                        data.cell.styles.overflow = 'linebreak';
+                    }
+                    
+                    // Toutes les autres colonnes centrées
+                    if (data.column.index <= 3) {
+                        data.cell.styles.halign = 'center';
+                    }
+                },
+                // CORRECTION : Ajout de didDrawCell pour garantir le style des premières lignes
+                didDrawCell: function(data) {
+                    // CORRECTION : Fallback pour s'assurer que la première ligne est stylisée
+                    if (data.column.index === 3 && data.row.index > 0) {
+                        const ctx = data.doc.context2d;
+                        const text = data.cell.text[0] || '';
+                        
+                        // Vérifier si le texte n'est pas déjà coloré
+                        if (text && (!data.cell.styles.textColor || data.cell.styles.textColor[0] === 0)) {
+                            let color = null;
+                            
+                            if (text.includes('Normales')) {
+                                color = '#4CAF50';
+                            } else if (text.includes('Suppl.')) {
+                                color = '#FF9800';
+                            } else if (text.includes('Nuit')) {
+                                color = '#9C27B0';
+                            } else if (text.includes('Week-end')) {
+                                color = '#F32121';
+                            } else if (text.includes('Congé')) {
+                                color = '#FFCC00';
+                            }
+                            
+                            // Redessiner le texte avec la couleur si nécessaire
+                            if (color) {
+                                ctx.save();
+                                ctx.fillStyle = color;
+                                ctx.font = 'bold 9px helvetica';
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+                                ctx.fillText(
+                                    text, 
+                                    data.cell.x + data.cell.width / 2, 
+                                    data.cell.y + data.cell.height / 2 + 1
+                                );
+                                ctx.restore();
+                                
+                                // Effacer le texte original
+                                data.cell.text = [];
+                            }
+                        }
+                    }
+                }
+            };
+            
+            // Créer le tableau du mois
+            doc.autoTable(autoTableConfig);
+            
+            // Mettre à jour la position Y après le tableau
+            yPosition = doc.lastAutoTable.finalY + 15;
+            
+            // Ajouter un espace entre les mois (sauf pour le dernier)
+            if (monthKey !== months[months.length - 1]) {
+                yPosition += 5;
+            }
+        }
+        
+        // ==================== PIED DE PAGE ====================
+        const totalPages = doc.internal.getNumberOfPages();
+        
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            
+            // Numéro de page
+            doc.setFontSize(8);
+            doc.setTextColor(150, 150, 150);
+            doc.text(
+                `Page ${i} / ${totalPages} - ${entries.length} entrée${entries.length > 1 ? 's' : ''} - ${months.length} mois`,
+                pageWidth / 2,
+                doc.internal.pageSize.getHeight() - 10,
+                { align: 'center' }
+            );
+        }
+        
+        // ==================== SAUVEGARDE ====================
+        const startClean = startDate.replace(/-/g, '');
+        const endClean = endDate.replace(/-/g, '');
+        const fileName = `heures_travail_${startClean}_${endClean}.pdf`;
+        doc.save(fileName);
+        
+        showSystemMessage("PDF généré avec succès !");
+        
+    } catch (error) {
+        console.error("Erreur détaillée:", error);
+        showSystemMessage("Erreur lors de la génération du PDF", true);
+    }
+}
+
+// Fonction pour grouper les entrées par mois
+function groupEntriesByMonth(entries) {
+    const groups = {};
+    
+    entries.forEach(entry => {
+        const date = new Date(entry.date);
+        const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
+        
+        if (!groups[monthKey]) {
+            groups[monthKey] = [];
+        }
+        
+        groups[monthKey].push(entry);
+    });
+    
+    // Trier les entrées dans chaque mois par date
+    Object.keys(groups).forEach(monthKey => {
+        groups[monthKey].sort((a, b) => new Date(a.date) - new Date(b.date));
+    });
+    
+    return groups;
+}
+
+// Fonction pour obtenir le nom du mois
+function getMonthName(monthNumber) {
+    const monthNames = [
+        'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+    ];
+    return monthNames[monthNumber - 1];
+}
+
+// Fonction pour calculer le résumé d'une période (inchangée)
+function calculatePeriodSummary(entries) {
+    let normalHours = 0;
+    let overtimeHours = 0;
+    let totalHours = 0;
+    const daysSet = new Set();
+    
+    entries.forEach(entry => {
+        const hours = calculateHours(entry);
+        totalHours += hours;
+        
+        if (entry.type === 'normal') {
+            normalHours += hours;
+        } else if (entry.type === 'overtime' || entry.type === 'night' || entry.type === 'weekend') {
+            overtimeHours += hours;
+        }
+        
+        if (entry.type !== 'leave') {
+            daysSet.add(entry.date);
+            if (entry.endDate) {
+                daysSet.add(entry.endDate);
+            }
+        }
+    });
+    
+    return {
+        normalHours,
+        overtimeHours,
+        totalHours,
+        daysWorked: daysSet.size
+    };
 }
 
 // Démarrer l'application
