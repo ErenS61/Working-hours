@@ -1510,7 +1510,7 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
                     data.cell.styles.fontStyle = "bold";
                     data.cell.styles.fillColor = [66, 139, 202];
                     data.cell.styles.textColor = 255;
-                    data.cell.styles.lineColor = [40, 90, 140]; // Bordure d'en-tête un peu plus sombre
+                    data.cell.styles.lineColor = [220, 220, 220];
                     return;
                 }
 
@@ -1547,18 +1547,26 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
                 yPosition = margin;
             }
 
+            // ==================== TITRE DU MOIS ====================
+            // Titre du mois (un peu plus petit)
             doc.setFontSize(13);
             doc.setTextColor(0, 0, 0);
             doc.setFont("helvetica", "bold");
             doc.text(`${monthName} ${year}`, margin, yPosition);
             yPosition += 7;
 
+            // Ligne de séparation colorée
+            doc.setDrawColor(66, 139, 202);
+            doc.setLineWidth(0.5);
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            yPosition += 10;
+
             const tableData = createTableData(monthEntries, includeNotes);
             const headers = ["Date", "Heures", "Durée", "Type"];
             if (includeNotes) headers.push("Notes");
 
             const availableWidth = pageWidth - margin * 2;
-            const fixedWidths = [25, 35, 20, 25];
+            const fixedWidths = [30, 35, 21, 25];
             const notesWidth = includeNotes ? availableWidth - fixedWidths.reduce((a, b) => a + b, 0) : 0;
 
             doc.autoTable({
@@ -1567,13 +1575,24 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
                 body: tableData,
                 margin: { left: margin, right: margin },
                 theme: "striped",
+                headStyles: {
+                    fillColor: [66, 139, 202],
+                    textColor: 255,
+                    fontStyle: "bold",
+                    fontSize: 10,
+                    halign: "center",
+                    cellPadding: 3,
+                    valign: "middle"
+                },
                 styles: {
                     fontSize: 9,
                     cellPadding: 3,
-                    valign: "middle",
                     overflow: "linebreak",
-                    lineWidth: 0.1, // ÉPAISSEUR DE LA BORDURE
-                    lineColor: [200, 200, 200] // COULEUR DE LA BORDURE (Gris clair)
+                    halign: "center", // CORRECTION : Par défaut tout centré
+                    minCellHeight: 6,
+                    lineColor: [220, 220, 220],
+                    lineWidth: 0.1,
+                    valign: "middle"
                 },
                 columnStyles: {
                     0: { cellWidth: fixedWidths[0] },
