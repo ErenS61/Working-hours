@@ -1288,30 +1288,16 @@ select.form-input {
     }
 }
 
-
-
-
-
-/* Pour tous les iPad */
-@supports (-webkit-touch-callout: none) and (not (orientation: landscape)) {
-    .calendar-day {
-        min-height: 55px;
-    }
-}
-
-/* Utiliser les points de rupture d'iPad */
-@media only screen 
-and (min-device-width: 820px) 
-and (max-device-width: 1180px) {
+@media only screen and (min-device-width: 820px) and (max-device-width: 1180px) {
     body {
         padding: 2rem;
     }
-    
+
     /* Styles pour iPad */
     .calendar-day {
         min-height: 65px;
     }
-    
+
     .hours-summary {
         gap: 0.7rem;
     }
