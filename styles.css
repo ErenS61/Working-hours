@@ -698,6 +698,37 @@ select.form-input {
     appearance: none;
 }
 
+/* Ajouter ces styles pour les champs désactivés */
+.form-input:disabled {
+    background-color: #333 !important;
+    color: #777 !important;
+    cursor: not-allowed !important;
+    border-color: #444 !important;
+    opacity: 0.7;
+}
+
+.form-input:disabled::placeholder {
+    color: #666 !important;
+}
+
+/* Styles spécifiques pour les champs d'heure désactivés */
+input[type="time"]:disabled,
+input[type="date"]:disabled {
+    background-color: #333 !important;
+    color: #777 !important;
+}
+
+/* Pour les cases à cocher désactivées */
+input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+input[type="checkbox"]:disabled + label {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
 /* ==================== CORRECTIONS iOS ==================== */
 @supports (-webkit-touch-callout: none) {
     /* Styles spécifiques pour iOS */

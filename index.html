@@ -94,7 +94,11 @@
         <i class="fa-solid fa-file-pdf"></i>
       </button>
 
-      <button class="delete-all-button" onclick="showDeleteAllConfirm()" id="deleteAllButton" title="Supprimer toutes les entrées">
+      <button
+        class="delete-all-button"
+        onclick="showDeleteAllConfirm()"
+        id="deleteAllButton"
+        title="Supprimer toutes les entrées">
         <i class="fa-solid fa-trash"></i>
       </button>
     </div>
@@ -135,7 +139,7 @@
         <div class="form-group">
           <label for="entryType">Type d'heures :</label>
           <div class="select-wrapper">
-            <select id="entryType" class="form-input">
+            <select id="entryType" class="form-input" onchange="handleEntryTypeChange()">
               <option value="normal">Heures normales</option>
               <option value="overtime">Heures supplémentaires</option>
               <option value="night">Heures de nuit</option>
@@ -368,7 +372,7 @@
 
         <div class="form-group">
           <label for="editEntryType">Type d'heures :</label>
-          <select id="editEntryType" class="form-input">
+          <select id="editEntryType" class="form-input" onchange="handleEditEntryTypeChange()">
             <option value="normal">Heures normales</option>
             <option value="overtime">Heures supplémentaires</option>
             <option value="night">Heures de nuit</option>

@@ -469,35 +469,76 @@ function showAddEntryModal() {
     document.getElementById("endDateGroup").style.display = "none";
     document.getElementById("endDate").value = "";
 
+    // Appeler la fonction pour gérer l'état initial des champs
+    handleEntryTypeChange();
+
     modal.style.display = "flex";
     toggleButtons();
 }
 
-// Afficher/masquer le champ date de fin
-function toggleEndDate() {
-    const isChecked = document.getElementById("spreadOverTwoDays").checked;
-    const endDateGroup = document.getElementById("endDateGroup");
-    const startDate = document.getElementById("entryDate").value;
+// Ajouter cette fonction pour gérer les changements de type d'entrée
+function handleEntryTypeChange() {
+    const entryType = document.getElementById("entryType");
+    const startTimeInput = document.getElementById("startTime");
+    const endTimeInput = document.getElementById("endTime");
+    const spreadCheckbox = document.getElementById("spreadOverTwoDays");
 
-    if (isChecked) {
-        endDateGroup.style.display = "block";
-        // Par défaut, mettre le jour suivant
-        const startDateObj = new Date(startDate);
-        startDateObj.setDate(startDateObj.getDate() + 1);
-        const nextDay = startDateObj.toISOString().split("T")[0];
-        document.getElementById("endDate").value = nextDay;
+    if (!entryType || !startTimeInput || !endTimeInput) return;
+
+    // Si le type est "leave" (congé)
+    if (entryType.value === "leave") {
+        // Désactiver les champs d'heure
+        startTimeInput.disabled = true;
+        endTimeInput.disabled = true;
+        startTimeInput.style.opacity = "0.5";
+        endTimeInput.style.opacity = "0.5";
+        startTimeInput.style.cursor = "not-allowed";
+        endTimeInput.style.cursor = "not-allowed";
+
+        // Désactiver la case à cocher pour l'étalement sur 2 jours
+        if (spreadCheckbox) {
+            spreadCheckbox.disabled = true;
+            spreadCheckbox.style.opacity = "0.5";
+            spreadCheckbox.style.cursor = "not-allowed";
+
+            // Si elle était cochée, la décocher
+            if (spreadCheckbox.checked) {
+                spreadCheckbox.checked = false;
+                document.getElementById("endDateGroup").style.display = "none";
+                document.getElementById("endDate").value = "";
+            }
+        }
+
+        // Vider les champs d'heure (optionnel, mais recommandé)
+        startTimeInput.value = "";
+        endTimeInput.value = "";
     } else {
-        endDateGroup.style.display = "none";
-        document.getElementById("endDate").value = "";
+        // Réactiver les champs pour les autres types
+        startTimeInput.disabled = false;
+        endTimeInput.disabled = false;
+        startTimeInput.style.opacity = "1";
+        endTimeInput.style.opacity = "1";
+        startTimeInput.style.cursor = "pointer";
+        endTimeInput.style.cursor = "pointer";
+
+        // Réactiver la case à cocher
+        if (spreadCheckbox) {
+            spreadCheckbox.disabled = false;
+            spreadCheckbox.style.opacity = "1";
+            spreadCheckbox.style.cursor = "pointer";
+        }
+
+        // Remettre des valeurs par défaut si les champs sont vides
+        if (!startTimeInput.value) {
+            startTimeInput.value = "08:00";
+        }
+        if (!endTimeInput.value) {
+            endTimeInput.value = "17:00";
+        }
     }
 }
 
-// Fermer le modal d'ajout
-function closeAddEntryModal() {
-    document.getElementById("addEntryModal").style.display = "none";
-}
-
-// Enregistrer une nouvelle entrée
+// Modifier la fonction saveEntry pour valider les congés sans heures
 function saveEntry() {
     const date = document.getElementById("entryDate").value;
     const startTime = document.getElementById("startTime").value;
@@ -507,30 +548,36 @@ function saveEntry() {
     const spreadOverTwoDays = document.getElementById("spreadOverTwoDays").checked;
     const endDate = spreadOverTwoDays ? document.getElementById("endDate").value : date;
 
-    // Validation
-    if (!date || !startTime || !endTime) {
-        showSystemMessage("Veuillez remplir tous les champs obligatoires", true);
+    // Validation de base
+    if (!date) {
+        showSystemMessage("Veuillez sélectionner une date", true);
         return;
     }
 
-    if (spreadOverTwoDays && !endDate) {
-        showSystemMessage("Veuillez spécifier la date de fin", true);
-        return;
-    }
-
-    // Vérifier si la date de fin est après la date de début
-    if (spreadOverTwoDays) {
-        const startDateObj = new Date(date);
-        const endDateObj = new Date(endDate);
-
-        if (endDateObj < startDateObj) {
-            showSystemMessage("La date de fin doit être après la date de début", true);
+    // Si ce n'est pas un congé, valider les heures
+    if (type !== "leave") {
+        if (!startTime || !endTime) {
+            showSystemMessage("Veuillez remplir les heures de début et de fin", true);
             return;
         }
-    }
 
-    // Pour les congés/absences, les heures ne sont pas nécessaires
-    if (type !== "leave") {
+        if (spreadOverTwoDays && !endDate) {
+            showSystemMessage("Veuillez spécifier la date de fin", true);
+            return;
+        }
+
+        // Vérifier si la date de fin est après la date de début
+        if (spreadOverTwoDays) {
+            const startDateObj = new Date(date);
+            const endDateObj = new Date(endDate);
+
+            if (endDateObj < startDateObj) {
+                showSystemMessage("La date de fin doit être après la date de début", true);
+                return;
+            }
+        }
+
+        // Calculer les heures pour vérifier la durée
         const entryData = {
             date: date,
             startTime: startTime,
@@ -551,20 +598,26 @@ function saveEntry() {
         }
     }
 
+    // Pour les congés, on peut mettre des valeurs par défaut pour les heures
+    const finalStartTime = type === "leave" ? "00:00" : startTime;
+    const finalEndTime = type === "leave" ? "00:00" : endTime;
+    const finalSpreadOverTwoDays = type === "leave" ? false : spreadOverTwoDays;
+    const finalEndDate = type === "leave" ? date : spreadOverTwoDays ? endDate : date;
+
     // Créer l'entrée
     const newEntry = {
         id: Date.now().toString(),
         date: date,
-        startTime: startTime,
-        endTime: endTime,
+        startTime: finalStartTime,
+        endTime: finalEndTime,
         type: type,
         notes: notes,
-        spreadOverTwoDays: spreadOverTwoDays,
+        spreadOverTwoDays: finalSpreadOverTwoDays,
         createdAt: new Date().toISOString()
     };
 
-    if (spreadOverTwoDays) {
-        newEntry.endDate = endDate;
+    if (finalSpreadOverTwoDays) {
+        newEntry.endDate = finalEndDate;
     }
 
     // Ajouter à la liste
@@ -580,7 +633,111 @@ function saveEntry() {
 
     // Fermer le modal et afficher un message système
     closeAddEntryModal();
-    showSystemMessage("Entrée enregistrée avec succès !");
+    const message = type === "leave" ? "Congé enregistré avec succès !" : "Entrée enregistrée avec succès !";
+    showSystemMessage(message);
+}
+
+// Modifier la fonction de modification d'entrée de la même manière
+function editEntry(id) {
+    entryToEdit = workEntries.find((entry) => entry.id === id);
+
+    if (!entryToEdit) {
+        showSystemMessage("Entrée non trouvée", true);
+        return;
+    }
+
+    // Remplir le formulaire d'édition
+    document.getElementById("editEntryDate").value = entryToEdit.date;
+    document.getElementById("editStartTime").value = entryToEdit.startTime;
+    document.getElementById("editEndTime").value = entryToEdit.endTime;
+    document.getElementById("editEntryType").value = entryToEdit.type;
+    document.getElementById("editEntryNotes").value = entryToEdit.notes || "";
+
+    // Gérer l'état initial des champs
+    handleEditEntryTypeChange();
+
+    // Gérer l'étalement sur 2 jours (seulement si ce n'est pas un congé)
+    if (entryToEdit.type !== "leave") {
+        const hasEndDate = entryToEdit.endDate && entryToEdit.endDate !== entryToEdit.date;
+        document.getElementById("editSpreadOverTwoDays").checked = hasEndDate;
+
+        if (hasEndDate) {
+            document.getElementById("editEndDateGroup").style.display = "block";
+            document.getElementById("editEndDate").value = entryToEdit.endDate;
+        } else {
+            document.getElementById("editEndDateGroup").style.display = "none";
+            document.getElementById("editEndDate").value = "";
+        }
+    } else {
+        document.getElementById("editSpreadOverTwoDays").checked = false;
+        document.getElementById("editEndDateGroup").style.display = "none";
+        document.getElementById("editEndDate").value = "";
+    }
+
+    // Afficher le modal
+    document.getElementById("editEntryModal").style.display = "flex";
+}
+
+// Ajouter cette fonction pour gérer les changements de type dans l'édition
+function handleEditEntryTypeChange() {
+    const entryType = document.getElementById("editEntryType");
+    const startTimeInput = document.getElementById("editStartTime");
+    const endTimeInput = document.getElementById("editEndTime");
+    const spreadCheckbox = document.getElementById("editSpreadOverTwoDays");
+
+    if (!entryType || !startTimeInput || !endTimeInput) return;
+
+    // Si le type est "leave" (congé)
+    if (entryType.value === "leave") {
+        // Désactiver les champs d'heure
+        startTimeInput.disabled = true;
+        endTimeInput.disabled = true;
+        startTimeInput.style.opacity = "0.5";
+        endTimeInput.style.opacity = "0.5";
+        startTimeInput.style.cursor = "not-allowed";
+        endTimeInput.style.cursor = "not-allowed";
+
+        // Désactiver la case à cocher pour l'étalement sur 2 jours
+        if (spreadCheckbox) {
+            spreadCheckbox.disabled = true;
+            spreadCheckbox.style.opacity = "0.5";
+            spreadCheckbox.style.cursor = "not-allowed";
+
+            // Si elle était cochée, la décocher et masquer le champ date de fin
+            if (spreadCheckbox.checked) {
+                spreadCheckbox.checked = false;
+                document.getElementById("editEndDateGroup").style.display = "none";
+                document.getElementById("editEndDate").value = "";
+            }
+        }
+
+        // Vider les champs d'heure
+        startTimeInput.value = "";
+        endTimeInput.value = "";
+    } else {
+        // Réactiver les champs pour les autres types
+        startTimeInput.disabled = false;
+        endTimeInput.disabled = false;
+        startTimeInput.style.opacity = "1";
+        endTimeInput.style.opacity = "1";
+        startTimeInput.style.cursor = "pointer";
+        endTimeInput.style.cursor = "pointer";
+
+        // Réactiver la case à cocher
+        if (spreadCheckbox) {
+            spreadCheckbox.disabled = false;
+            spreadCheckbox.style.opacity = "1";
+            spreadCheckbox.style.cursor = "pointer";
+        }
+
+        // Si les champs sont vides, mettre des valeurs par défaut
+        if (!startTimeInput.value) {
+            startTimeInput.value = "08:00";
+        }
+        if (!endTimeInput.value) {
+            endTimeInput.value = "17:00";
+        }
+    }
 }
 
 // Afficher la confirmation de suppression MODAL
@@ -763,61 +920,152 @@ function saveEditedEntry() {
 function showDayEntries(day, entries) {
     if (entries.length === 0) {
         let message = `Aucune entrée pour le ${day}/${currentMonth + 1}/${currentYear}`;
-        showSystemMessage(message, true); // true pour le style erreur (rouge)
+        showSystemMessage(message, true);
         return;
     }
 
-    let message = `Entrées pour le ${day}/${currentMonth + 1}/${currentYear} :\n\n`;
-    let entryIds = []; // Stocker les IDs des entrées pour les boutons
+    // Formater la date d'affichage pour le titre (JJ/MM/AAAA)
+    const dateObj = new Date(currentYear, currentMonth, day);
+    const dayFormatted = day.toString().padStart(2, "0");
+    const monthFormatted = (currentMonth + 1).toString().padStart(2, "0");
+    const yearFormatted = currentYear.toString();
+    const titleDate = `${dayFormatted}/${monthFormatted}/${yearFormatted}`;
 
+    // Créer le message avec toutes les entrées
+    let message = `<div style="text-align: left; line-height: 1.8;">`;
+
+    // Variables pour les boutons
+    let allEntryIds = [];
+    let hasMultipleEntries = entries.length > 1;
+
+    // Afficher chaque entrée
     entries.forEach((entry, index) => {
-        entryIds.push(entry.id); // Ajouter l'ID à la liste
+        allEntryIds.push(entry.id);
         const hours = calculateHours(entry);
-        let dateInfo = "";
-        let entryNumber = index + 1;
 
+        // Emojis selon le type
+        const emojis = {
+            normal: "📅",
+            overtime: "🔥",
+            night: "🌙",
+            weekend: "🏖️",
+            leave: "🏝️"
+        };
+
+        const emoji = emojis[entry.type] || "📝";
+
+        // Informations de date supplémentaires
+        let dateInfo = "";
         if (entry.endDate && entry.endDate !== entry.date) {
             const endDate = new Date(entry.endDate);
-            dateInfo = ` (du ${new Date(entry.date).toLocaleDateString("fr-FR")} au ${endDate.toLocaleDateString("fr-FR")})`;
+            const endDay = endDate.getDate().toString().padStart(2, "0");
+            const endMonth = (endDate.getMonth() + 1).toString().padStart(2, "0");
+            dateInfo = ` (jusqu'au ${endDay}/${endMonth})`;
         }
 
+        // Pour les congés/absences
         if (entry.type === "leave") {
-            message += `${entryNumber}. 📅 Congé/Absence${dateInfo}\n`;
-        } else {
-            message += `${entryNumber}. ⏰ ${entry.startTime} - ${entry.endTime} (${hours.toFixed(1)}h) - ${getTypeLabel(entry.type)}${dateInfo}\n`;
-        }
+            message += `
+                <div style="margin-bottom: 20px; padding: 15px; background: rgba(255, 255, 255, 0.05); border-radius: 10px;"> <!-- SUPPRIMÉ: border-left: 4px solid #ffcc00 -->
+                    <div style="font-weight: bold; margin-bottom: 8px; color: #00ffcc; font-size: 16px;">
+                        ${emoji} Congé/Absence${dateInfo}
+                    </div>`;
 
-        if (entry.notes) {
-            message += `   📝 Notes: ${entry.notes}\n`;
+            if (entry.notes && entry.notes.trim() !== "") {
+                message += `
+                    <div style="margin-top: 8px; color: #ddd; font-style: italic; font-size: 14px; padding: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                        📝 ${entry.notes}
+                    </div>`;
+            }
+
+            message += `
+                    <div style="margin-top: 12px; display: flex; gap: 12px;">
+                        <button onclick="editEntry('${entry.id}'); closeInfoModal();" style="padding: 8px 12px; background: #00ffcc; color: #000; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; flex: 1; font-weight: bold; transition: all 0.3s;">
+                            Modifier
+                        </button>
+                        <button onclick="showDeleteConfirm('${entry.id}'); closeInfoModal();" style="padding: 8px 12px; background: #ff5555; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; flex: 1; font-weight: bold; transition: all 0.3s;">
+                            Supprimer
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            message += `
+                <div style="margin-bottom: 20px; padding: 15px; background: rgba(255, 255, 255, 0.05); border-radius: 10px;"> <!-- SUPPRIMÉ: border-left: 4px solid #00ffcc -->
+                    <div style="font-weight: bold; margin-bottom: 8px; color: #00ffcc; font-size: 16px;">
+                        ${emoji} ${entry.startTime} - ${entry.endTime} <span style="color: #ffffff; font-weight: normal;">(${hours.toFixed(1)}h)</span>${dateInfo}
+                    </div>
+                    <div style="margin-left: 5px; margin-top: 6px; color: #ccc; font-size: 14px;">
+                        🏷️ Type : ${getTypeLabel(entry.type)}
+                    </div>`;
+
+            if (entry.notes && entry.notes.trim() !== "") {
+                message += `
+                    <div style="margin-left: 5px; margin-top: 8px; color: #ddd; font-style: italic; font-size: 14px; padding: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                        📝 ${entry.notes}
+                    </div>`;
+            }
+
+            message += `
+                    <div style="margin-top: 12px; display: flex; gap: 12px;">
+                        <button onclick="editEntry('${entry.id}'); closeInfoModal();" style="padding: 8px 12px; background: #00ffcc; color: #000; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; flex: 1; font-weight: bold; transition: all 0.3s;">
+                            Modifier
+                        </button>
+                        <button onclick="showDeleteConfirm('${entry.id}'); closeInfoModal();" style="padding: 8px 12px; background: #ff5555; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; flex: 1; font-weight: bold; transition: all 0.3s;">
+                            Supprimer
+                        </button>
+                    </div>
+                </div>
+            `;
         }
-        message += "\n";
     });
 
-    // Afficher le modal avec les boutons modifier et supprimer
-    showDayDetailsModal(message, `Détails du ${day}/${currentMonth + 1}`, entryIds);
-}
+    message += `</div>`;
 
-// Fonction pour afficher le modal avec bouton modifier et supprimer
-function showDayDetailsModal(message, title, entryIds) {
-    document.getElementById("infoTitle").textContent = title;
-    document.getElementById("infoMessage").textContent = message;
+    // Afficher le modal
+    const infoMessageElement = document.getElementById("infoMessage");
+    infoMessageElement.innerHTML = "";
 
-    // Remplacer les boutons par Modifier, Supprimer et OK
+    const messageContainer = document.createElement("div");
+    messageContainer.style.cssText = `
+        text-align: left;
+        font-size: 15px;
+        line-height: 1.8;
+        max-height: 500px;
+        overflow-y: auto;
+        padding: 15px;
+        margin-bottom: 20px;
+        background: rgba(40, 40, 40, 0.7);
+        border-radius: 10px;
+        scrollbar-width: thin;
+        scrollbar-color: #00ffcc #2a2a2a;
+    `;
+
+    messageContainer.innerHTML = message;
+    infoMessageElement.appendChild(messageContainer);
+
+    // Configurer les boutons du bas (Supprimer tout et OK)
     const formActions = document.querySelector("#infoModal .form-actions");
-
-    // Supprimer l'ancien bouton OK
     formActions.innerHTML = "";
 
-    // Si il y a des entrées, ajouter les boutons Modifier, Supprimer et OK
-    if (entryIds.length > 0) {
+    // Si plusieurs entrées, ajouter un bouton "Supprimer tout"
+    if (hasMultipleEntries) {
         formActions.innerHTML = `
-            <button class="btn-delete" onclick="deleteFirstEntry('${entryIds[0]}')">Supprimer</button>
-            <button class="btn-save" onclick="editFirstEntry('${entryIds[0]}')">Modifier</button>
-            <button class="btn-cancel" onclick="closeInfoModal()">OK</button>
+            <button class="btn-delete" onclick="deleteAllEntriesForDay(${day}, ${currentMonth}, ${currentYear})" style="background: #ff5555; flex: 1; font-weight: bold; padding: 12px; font-size: 14px;">
+                Supprimer tout
+            </button>
+            <button class="btn-cancel" onclick="closeInfoModal()" style="flex: 1; font-weight: bold; padding: 12px; font-size: 14px;">
+                OK
+            </button>
         `;
     } else {
-        formActions.innerHTML = '<button class="btn-cancel" onclick="closeInfoModal()">OK</button>';
+        formActions.innerHTML =
+            '<button class="btn-cancel" onclick="closeInfoModal()" style="width: 100%; font-weight: bold; padding: 12px; font-size: 14px;">OK</button>';
     }
+
+    // Mettre à jour le titre avec une taille plus grande
+    document.getElementById("infoTitle").textContent = `Détails du ${titleDate}`;
+    document.getElementById("infoTitle").style.fontSize = "22px";
 
     const modal = document.getElementById("infoModal");
     modal.style.display = "flex";
@@ -825,18 +1073,37 @@ function showDayDetailsModal(message, title, entryIds) {
     // Changer la couleur du titre
     const infoTitle = document.getElementById("infoTitle");
     infoTitle.style.color = "#00ffcc";
+    infoTitle.style.fontWeight = "bold";
+    infoTitle.style.marginBottom = "15px";
 }
 
-// Fonction pour modifier la première entrée du jour
-function editFirstEntry(id) {
-    closeInfoModal(); // Fermer le modal des détails
-    editEntry(id); // Ouvrir le modal d'édition
-}
+// Fonction pour supprimer toutes les entrées d'un jour
+function deleteAllEntriesForDay(day, month, year) {
+    const targetDate = new Date(year, month, day);
 
-// Fonction pour supprimer la première entrée du jour
-function deleteFirstEntry(id) {
-    closeInfoModal(); // Fermer le modal des détails
-    showDeleteConfirm(id); // Ouvrir le modal de confirmation de suppression
+    // Filtrer les entrées pour garder celles qui ne correspondent pas à cette date
+    const initialCount = workEntries.length;
+    workEntries = workEntries.filter((entry) => {
+        const entryDate = new Date(entry.date);
+        const entryEndDate = entry.endDate ? new Date(entry.endDate) : entryDate;
+
+        // Ne pas garder les entrées qui commencent OU finissent ce jour
+        return !isSameDay(entryDate, targetDate) && !(entry.endDate && isSameDay(entryEndDate, targetDate));
+    });
+
+    const deletedCount = initialCount - workEntries.length;
+
+    // Sauvegarder dans le localStorage
+    localStorage.setItem("workEntries", JSON.stringify(workEntries));
+
+    // Mettre à jour l'affichage
+    displayMonthEntries();
+    updateSummary();
+    generateCalendar();
+
+    // Fermer le modal et afficher un message
+    closeInfoModal();
+    showSystemMessage(`${deletedCount} entrée(s) supprimée(s) pour ce jour`);
 }
 
 // Afficher le modal d'information
@@ -1007,6 +1274,40 @@ function showStatsModal() {
 // Fermer le modal des statistiques
 function closeStatsModal() {
     document.getElementById("statsModal").style.display = "none";
+}
+
+// Fermer le modal d'ajout d'entrée
+function closeAddEntryModal() {
+    const modal = document.getElementById("addEntryModal");
+    modal.style.display = "none";
+    document.getElementById("addEntryForm").reset();
+}
+
+// Afficher/masquer le champ date de fin (pour l'ajout)
+function toggleEndDate() {
+    const isChecked = document.getElementById("spreadOverTwoDays").checked;
+    const endDateGroup = document.getElementById("endDateGroup");
+    const startDate = document.getElementById("entryDate").value;
+
+    if (isChecked) {
+        endDateGroup.style.display = "block";
+        // Par défaut, mettre le jour suivant
+        const startDateObj = new Date(startDate);
+        startDateObj.setDate(startDateObj.getDate() + 1);
+        const nextDay = startDateObj.toISOString().split("T")[0];
+        document.getElementById("endDate").value = nextDay;
+    } else {
+        endDateGroup.style.display = "none";
+        document.getElementById("endDate").value = "";
+    }
+}
+
+// Fermer tous les modals (fonction utilitaire)
+function closeAllModals() {
+    const modals = document.querySelectorAll(".modal");
+    modals.forEach((modal) => {
+        modal.style.display = "none";
+    });
 }
 
 // Générer le graphique des heures
@@ -1393,14 +1694,14 @@ function generatePDF() {
     closePDFModal();
 }
 
-// Créer le document PDF avec organisation par mois et bordures
+// Créer le document PDF complet (Fusion avec Résumé + Croix Rouge Géométrique)
 function createPDF(entries, startDate, endDate, includeSummary, includeNotes, title) {
-    console.log("Création du PDF avec", entries.length, "entrées");
+    console.log("Création du PDF complet avec", entries.length, "entrées");
 
     try {
+        const { jsPDF } = window.jspdf;
         const doc = new jsPDF("p", "mm", "a4");
 
-        // Configuration
         const pageWidth = doc.internal.pageSize.getWidth();
         const margin = 15;
         let yPosition = margin;
@@ -1424,15 +1725,12 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
         const periodText = `Période : ${startFormatted} - ${endFormatted}`;
 
         const now = new Date();
-        const genDate = now.toLocaleDateString("fr-FR");
-        const genTime = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-        const genText = `Généré le ${genDate} à ${genTime}`;
+        const genText = `Généré le ${now.toLocaleDateString("fr-FR")} à ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
 
         doc.setFontSize(10);
         doc.setTextColor(150, 150, 150);
         doc.text(periodText, margin, yPosition);
         doc.text(genText, pageWidth - margin, yPosition, { align: "right" });
-
         yPosition += 20;
 
         // ==================== STATISTIQUES GLOBALES ====================
@@ -1486,54 +1784,83 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
 
         const createTableData = (monthEntries, includeNotesParam) => {
             return monthEntries.map((entry) => {
-                const entryDate = new Date(entry.date);
-                const dateStr = entryDate.toLocaleDateString("fr-FR", {
+                const dateStr = new Date(entry.date).toLocaleDateString("fr-FR", {
                     day: "2-digit",
                     month: "2-digit",
                     year: "numeric"
                 });
-                let timeInfo = `${entry.startTime} - ${entry.endTime}`;
-                if (entry.endDate && entry.endDate !== entry.date) timeInfo += " (nuit)";
-                const hours = calculateHours(entry);
-                const typeLabel = getTypeLabel(entry.type);
-                const row = [dateStr, timeInfo, `${hours.toFixed(1)} h`, typeLabel];
+
+                let timeInfo, durationInfo;
+                if (entry.type === "leave") {
+                    timeInfo = "X_ICON";
+                    durationInfo = "X_ICON";
+                } else {
+                    timeInfo = `${entry.startTime} - ${entry.endTime}`;
+                    if (entry.endDate && entry.endDate !== entry.date) timeInfo += " (nuit)";
+                    durationInfo = `${calculateHours(entry).toFixed(1)} h`;
+                }
+
+                const row = [dateStr, timeInfo, durationInfo, getTypeLabel(entry.type)];
                 if (includeNotesParam) row.push(entry.notes || "");
                 return row;
             });
         };
 
-        const createDidParseCellFunction = (includeNotesParam) => {
-            return function (data) {
-                // GESTION DES EN-TÊTES
-                if (data.row.section === "head") {
-                    data.cell.styles.halign = "center";
-                    data.cell.styles.fontStyle = "bold";
-                    data.cell.styles.fillColor = [66, 139, 202];
-                    data.cell.styles.textColor = 255;
-                    data.cell.styles.lineColor = [220, 220, 220];
-                    return;
-                }
+        const didParseCell = (data) => {
+            if (data.row.section === "head") {
+                data.cell.styles.halign = "center";
+                data.cell.styles.fontStyle = "bold";
+                data.cell.styles.fillColor = [66, 139, 202];
+                data.cell.styles.textColor = 255;
+                return;
+            }
 
-                // GESTION DU CORPS
-                const cellValue = data.cell.raw || "";
-                if (data.column.index <= 3) {
-                    data.cell.styles.halign = "center";
-                }
+            if (data.cell.raw === "X_ICON") {
+                data.cell.styles.textColor = [255, 255, 255]; // Rendre le texte invisible
+            }
 
-                if (data.column.index === 3) {
-                    if (cellValue.includes("Normales")) data.cell.styles.textColor = [76, 175, 80];
-                    else if (cellValue.includes("Suppl.")) data.cell.styles.textColor = [255, 152, 0];
-                    else if (cellValue.includes("Nuit")) data.cell.styles.textColor = [156, 39, 176];
-                    else if (cellValue.includes("Week-end")) data.cell.styles.textColor = [243, 33, 33];
-                    else if (cellValue.includes("Congé")) data.cell.styles.textColor = [255, 204, 0];
-                    data.cell.styles.fontStyle = "bold";
-                }
+            if (data.column.index <= 3) data.cell.styles.halign = "center";
 
-                if (includeNotesParam && data.column.index === 4) {
-                    data.cell.styles.fontStyle = "italic";
-                    data.cell.styles.halign = "left";
-                }
-            };
+            if (data.column.index === 3) {
+                const val = data.cell.raw || "";
+                if (val.includes("Normales")) data.cell.styles.textColor = [76, 175, 80];
+                else if (val.includes("Suppl.")) data.cell.styles.textColor = [255, 152, 0];
+                else if (val.includes("Nuit")) data.cell.styles.textColor = [156, 39, 176];
+                else if (val.includes("Week-end")) data.cell.styles.textColor = [243, 33, 33];
+                else if (val.includes("Congé")) data.cell.styles.textColor = [255, 204, 0]; // Jaune original
+                data.cell.styles.fontStyle = "bold";
+            }
+
+            if (includeNotes && data.column.index === 4) {
+                data.cell.styles.fontStyle = "italic";
+                data.cell.styles.halign = "left";
+            }
+        };
+
+        // DESSIN DE LA CROIX (Épaisse, réduite à 40%, bords carrés)
+        const didDrawCell = (data) => {
+            if (data.row.section === "body" && data.cell.raw === "X_ICON") {
+                const iconSize = data.cell.height * 0.4; // Taille réduite
+                const centerX = data.cell.x + data.cell.width / 2;
+                const centerY = data.cell.y + data.cell.height / 2;
+
+                doc.setDrawColor(231, 76, 60); // Rouge
+                doc.setLineWidth(0.8); // Épaisse
+                doc.setLineCap("butt"); // Bords nets/carrés
+
+                doc.line(
+                    centerX - iconSize / 2,
+                    centerY - iconSize / 2,
+                    centerX + iconSize / 2,
+                    centerY + iconSize / 2
+                );
+                doc.line(
+                    centerX + iconSize / 2,
+                    centerY - iconSize / 2,
+                    centerX - iconSize / 2,
+                    centerY + iconSize / 2
+                );
+            }
         };
 
         // Parcourir chaque mois
@@ -1542,72 +1869,50 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             const [year, month] = monthKey.split("-").map(Number);
             const monthName = getMonthName(month);
 
-            if (yPosition > 240) {
+            if (yPosition > 230) {
                 doc.addPage();
                 yPosition = margin;
             }
 
-            // ==================== TITRE DU MOIS ====================
-            // Titre du mois (un peu plus petit)
             doc.setFontSize(13);
             doc.setTextColor(0, 0, 0);
             doc.setFont("helvetica", "bold");
             doc.text(`${monthName} ${year}`, margin, yPosition);
             yPosition += 7;
 
-            // Ligne de séparation colorée
             doc.setDrawColor(66, 139, 202);
             doc.setLineWidth(0.5);
             doc.line(margin, yPosition, pageWidth - margin, yPosition);
-            yPosition += 10;
-
-            const tableData = createTableData(monthEntries, includeNotes);
-            const headers = ["Date", "Heures", "Durée", "Type"];
-            if (includeNotes) headers.push("Notes");
-
-            const availableWidth = pageWidth - margin * 2;
-            const fixedWidths = [30, 35, 21, 25];
-            const notesWidth = includeNotes ? availableWidth - fixedWidths.reduce((a, b) => a + b, 0) : 0;
+            yPosition += 5;
 
             doc.autoTable({
                 startY: yPosition,
-                head: [headers],
-                body: tableData,
+                head: [["Date", "Heures", "Durée", "Type", ...(includeNotes ? ["Notes"] : [])]],
+                body: createTableData(monthEntries, includeNotes),
                 margin: { left: margin, right: margin },
                 theme: "striped",
-                headStyles: {
-                    fillColor: [66, 139, 202],
-                    textColor: 255,
-                    fontStyle: "bold",
-                    fontSize: 10,
-                    halign: "center",
-                    cellPadding: 3,
-                    valign: "middle"
-                },
                 styles: {
                     fontSize: 9,
                     cellPadding: 3,
-                    overflow: "linebreak",
-                    halign: "center", // CORRECTION : Par défaut tout centré
-                    minCellHeight: 6,
+                    valign: "middle",
                     lineColor: [220, 220, 220],
-                    lineWidth: 0.1,
-                    valign: "middle"
+                    lineWidth: 0.1
                 },
                 columnStyles: {
-                    0: { cellWidth: fixedWidths[0] },
-                    1: { cellWidth: fixedWidths[1] },
-                    2: { cellWidth: fixedWidths[2] },
-                    3: { cellWidth: fixedWidths[3] },
-                    4: { cellWidth: notesWidth }
+                    0: { cellWidth: 30 },
+                    1: { cellWidth: 35 },
+                    2: { cellWidth: 21 },
+                    3: { cellWidth: 25 },
+                    4: { cellWidth: "auto" }
                 },
-                didParseCell: createDidParseCellFunction(includeNotes)
+                didParseCell: didParseCell,
+                didDrawCell: didDrawCell
             });
 
             yPosition = doc.lastAutoTable.finalY + 15;
         }
 
-        // Pied de page
+        // Pied de page (Numérotation)
         const totalPages = doc.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
@@ -1618,11 +1923,11 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             });
         }
 
-        doc.save(`suivi_heures_${startDate}_${endDate}.pdf`);
-        showSystemMessage("PDF généré avec succès !");
+        doc.save(`suivi_heures_${startDate}.pdf`);
+        showSystemMessage("PDF fusionné généré avec succès !");
     } catch (error) {
         console.error("Erreur PDF:", error);
-        showSystemMessage("Erreur lors de la génération du PDF", true);
+        showSystemMessage("Erreur lors de la génération", true);
     }
 }
 
