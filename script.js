@@ -1694,7 +1694,6 @@ function generatePDF() {
     closePDFModal();
 }
 
-// Créer le document PDF complet
 function createPDF(entries, startDate, endDate, includeSummary, includeNotes, title) {
     console.log("Création du PDF complet avec", entries.length, "entrées");
 
@@ -1792,8 +1791,7 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
 
                 let timeInfo, durationInfo;
                 if (entry.type === "leave") {
-                    // On laisse vide pour ne pas voir "X_ICON" écrit en texte
-                    timeInfo = "";
+                    timeInfo = ""; // Vide pour la croix
                     durationInfo = "";
                 } else {
                     timeInfo = `${entry.startTime} - ${entry.endTime}`;
@@ -1816,32 +1814,40 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
                 return;
             }
 
+            // Centrage colonnes Date, Heures, Durée, Type
             if (data.column.index <= 3) data.cell.styles.halign = "center";
 
+            // Style de la colonne Notes (Italique)
+            if (includeNotes && data.column.index === 4) {
+                data.cell.styles.fontStyle = "italic";
+                data.cell.styles.halign = "left";
+            }
+
+            // Couleur spécifique pour la colonne Type
             if (data.column.index === 3) {
                 const val = data.cell.raw || "";
                 if (val.includes("Normales")) data.cell.styles.textColor = [76, 175, 80];
                 else if (val.includes("Suppl.")) data.cell.styles.textColor = [255, 152, 0];
                 else if (val.includes("Nuit")) data.cell.styles.textColor = [156, 39, 176];
                 else if (val.includes("Week-end")) data.cell.styles.textColor = [243, 33, 33];
-                else if (val.includes("Congé")) data.cell.styles.textColor = [255, 204, 0];
+                else if (val.includes("Congé")) data.cell.styles.textColor = [255, 204, 0]; // Jaune original
                 data.cell.styles.fontStyle = "bold";
             }
         };
 
         // DESSIN DE LA CROIX
         const didDrawCell = (data) => {
-            // On vérifie si le type (colonne index 3) est "Congé" pour dessiner la croix dans Heures et Durée
             const rowData = data.row.raw;
             const isLeave = rowData[3] && rowData[3].includes("Congé");
 
+            // On dessine la croix seulement dans Heures (1) et Durée (2) si c'est un congé
             if (data.row.section === "body" && isLeave && (data.column.index === 1 || data.column.index === 2)) {
                 const iconSize = data.cell.height * 0.4;
                 const centerX = data.cell.x + data.cell.width / 2;
                 const centerY = data.cell.y + data.cell.height / 2;
 
                 doc.setDrawColor(231, 76, 60);
-                doc.setLineWidth(1.0);
+                doc.setLineWidth(0.8);
                 doc.setLineCap("butt");
 
                 doc.line(
@@ -1918,11 +1924,16 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             });
         }
 
-        doc.save(`suivi_heures_${startDate}.pdf`);
+        // ==================== SAUVEGARDE ====================
+        const startClean = startDate.replace(/-/g, "");
+        const endClean = endDate.replace(/-/g, "");
+        const fileName = `heures_travail_${startClean}_${endClean}.pdf`;
+        doc.save(fileName);
+
         showSystemMessage("PDF généré avec succès !");
     } catch (error) {
-        console.error("Erreur PDF :", error);
-        showSystemMessage("Erreur lors de la génération", true);
+        console.error("Erreur détaillée:", error);
+        showSystemMessage("Erreur lors de la génération du PDF", true);
     }
 }
 
