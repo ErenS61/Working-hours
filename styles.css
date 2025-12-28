@@ -1319,9 +1319,26 @@ input[type="checkbox"]:disabled + label {
     }
 }
 
-@media only screen and (min-device-width: 820px) and (max-device-width: 1180px) {
+/* Taille pour les iPad Air en mode PAYSAGE */
+@media only screen and (min-width: 1170px) and (max-width: 1190px) {
     body {
-        padding: 2rem;
+        padding: 5rem;
+    }
+
+    /* Styles pour iPad */
+    .calendar-day {
+        min-height: 65px;
+    }
+
+    .hours-summary {
+        gap: 0.7rem;
+    }
+}
+
+/* Taille pour les iPad Air en mode PORTRAIT */
+@media only screen and (min-width: 810px) and (max-width: 830px) {
+    body {
+        padding: 3rem;
     }
 
     /* Styles pour iPad */
