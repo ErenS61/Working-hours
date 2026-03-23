@@ -1,0 +1,51 @@
+[
+    {
+        "version": "1.3.0",
+        "date": "2025-03-23",
+        "label": "Nouveauté",
+        "labelType": "new",
+        "changes": [
+            { "type": "new", "text": "Ajout du menu hamburger avec accès aux notes de version" },
+            { "type": "new", "text": "Nouveau modal de changelog avec historique des versions" },
+            { "type": "new", "text": "Mode multi-entrées dans le modal d'ajout : saisie rapide de plusieurs jours d'un coup" },
+            { "type": "new", "text": "Bouton Dupliquer sur chaque ligne du mode multi-entrées" }
+        ]
+    },
+    {
+        "version": "1.2.0",
+        "date": "2025-02-10",
+        "label": "Amélioration",
+        "labelType": "improvement",
+        "changes": [
+            { "type": "new", "text": "Export PDF : ajout d'un récapitulatif mensuel sous chaque tableau" },
+            { "type": "improvement", "text": "Export PDF : le résumé global est maintenant affiché dans un bloc coloré style carte" },
+            { "type": "fix", "text": "Correction du comptage des jours travaillés pour les heures de nuit étalées sur 2 jours" }
+        ]
+    },
+    {
+        "version": "1.1.0",
+        "date": "2025-01-05",
+        "label": "Amélioration",
+        "labelType": "improvement",
+        "changes": [
+            { "type": "new", "text": "Ajout de l'export PDF avec tableau par mois" },
+            { "type": "new", "text": "Ajout du modal de statistiques avec graphique hebdomadaire" },
+            { "type": "improvement", "text": "Prise en charge des heures de nuit étalées sur 2 jours" },
+            { "type": "improvement", "text": "Affichage des congés/absences avec icône dédiée dans le calendrier" }
+        ]
+    },
+    {
+        "version": "1.0.0",
+        "date": "2024-12-01",
+        "label": "Lancement",
+        "labelType": "launch",
+        "changes": [
+            { "type": "new", "text": "Lancement initial de l'application" },
+            { "type": "new", "text": "Calendrier mensuel avec navigation entre les mois" },
+            { "type": "new", "text": "Ajout, modification et suppression d'entrées de travail" },
+            { "type": "new", "text": "Résumé des heures normales, supplémentaires et total" },
+            { "type": "new", "text": "Import / Export des données en JSON" },
+            { "type": "new", "text": "Support des types : Normal, Supplémentaire, Nuit, Week-end, Congé" }
+        ]
+    }
+]

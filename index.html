@@ -89,6 +89,19 @@
     <!--------------------------------------------------------------------------------------->
   </head>
   <body>
+    <!-- Menu hamburger -->
+    <div id="hamburgerMenu">
+      <button id="hamburgerBtn" onclick="toggleHamburgerMenu()" title="Menu">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <div id="hamburgerDropdown" class="hamburger-dropdown" style="display:none">
+        <button class="hamburger-item" onclick="showChangelogModal(); toggleHamburgerMenu()">
+          <i class="fa-solid fa-newspaper"></i>
+          Notes de version
+        </button>
+      </div>
+    </div>
+
     <div>
       <h1 id="pageTitle">⏰ Suivi des Heures de Travail</h1>
 
@@ -183,55 +196,85 @@
         <button class="close-modal" onclick="closeAddEntryModal()">&times;</button>
         <h2>➕ Ajouter des Heures</h2>
 
-        <div class="form-group">
-          <label for="entryDate">Date de début :</label>
-          <input type="date" id="entryDate" class="form-input" />
+        <!-- Onglets -->
+        <div class="modal-tabs">
+          <button class="modal-tab active" id="tabSingle" onclick="switchTab('single')">
+            <i class="fa-solid fa-clock"></i> Entrée unique
+          </button>
+          <button class="modal-tab" id="tabMulti" onclick="switchTab('multi')">
+            <i class="fa-solid fa-list-check"></i> Multi-entrées
+          </button>
         </div>
 
-        <div class="form-group">
-          <label for="startTime">Heure de début :</label>
-          <input type="time" id="startTime" class="form-input" />
-        </div>
+        <!-- Panneau entrée unique -->
+        <div id="panelSingle">
+          <div class="form-group">
+            <label for="entryDate">Date de début :</label>
+            <input type="date" id="entryDate" class="form-input" />
+          </div>
 
-        <div class="form-group">
-          <div class="checkbox-group">
-            <input type="checkbox" id="spreadOverTwoDays" onchange="toggleEndDate()" />
-            <label for="spreadOverTwoDays">Étalement sur 2 jours (nuit)</label>
+          <div class="form-group">
+            <label for="startTime">Heure de début :</label>
+            <input type="time" id="startTime" class="form-input" />
+          </div>
+
+          <div class="form-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="spreadOverTwoDays" onchange="toggleEndDate()" />
+              <label for="spreadOverTwoDays">Étalement sur 2 jours (nuit)</label>
+            </div>
+          </div>
+
+          <div class="form-group" id="endDateGroup" style="display: none">
+            <label for="endDate">Date de fin :</label>
+            <input type="date" id="endDate" class="form-input" />
+          </div>
+
+          <div class="form-group">
+            <label for="endTime">Heure de fin :</label>
+            <input type="time" id="endTime" class="form-input" />
+          </div>
+
+          <div class="form-group">
+            <label for="entryType">Type d'heures :</label>
+            <div class="select-wrapper">
+              <select id="entryType" class="form-input" onchange="handleEntryTypeChange()">
+                <option value="normal">Heures normales</option>
+                <option value="overtime">Heures supplémentaires</option>
+                <option value="night">Heures de nuit</option>
+                <option value="weekend">Week-end</option>
+                <option value="leave">Congé/Absence</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="entryNotes">Notes (optionnel) :</label>
+            <textarea id="entryNotes" class="form-input" rows="3" placeholder="Description du travail..."></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn-cancel" onclick="closeAddEntryModal()">Annuler</button>
+            <button class="btn-save" onclick="saveEntry()">Enregistrer</button>
           </div>
         </div>
 
-        <div class="form-group" id="endDateGroup" style="display: none">
-          <label for="endDate">Date de fin :</label>
-          <input type="date" id="endDate" class="form-input" />
-        </div>
+        <!-- Panneau multi-entrées -->
+        <div id="panelMulti" style="display:none">
+          <div id="multiEntriesList"></div>
 
-        <div class="form-group">
-          <label for="endTime">Heure de fin :</label>
-          <input type="time" id="endTime" class="form-input" />
-        </div>
+          <button class="btn-add-row" onclick="addMultiRow()">
+            <i class="fa-solid fa-circle-plus"></i> Ajouter une ligne
+          </button>
 
-        <div class="form-group">
-          <label for="entryType">Type d'heures :</label>
-          <div class="select-wrapper">
-            <select id="entryType" class="form-input" onchange="handleEntryTypeChange()">
-              <option value="normal">Heures normales</option>
-              <option value="overtime">Heures supplémentaires</option>
-              <option value="night">Heures de nuit</option>
-              <option value="weekend">Week-end</option>
-              <option value="leave">Congé/Absence</option>
-            </select>
+          <div class="form-actions">
+            <button class="btn-cancel" onclick="closeAddEntryModal()">Annuler</button>
+            <button class="btn-save" onclick="saveMultiEntries()">
+              <i class="fa-solid fa-floppy-disk"></i> Tout enregistrer
+            </button>
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="entryNotes">Notes (optionnel) :</label>
-          <textarea id="entryNotes" class="form-input" rows="3" placeholder="Description du travail..."></textarea>
-        </div>
-
-        <div class="form-actions">
-          <button class="btn-cancel" onclick="closeAddEntryModal()">Annuler</button>
-          <button class="btn-save" onclick="saveEntry()">Enregistrer</button>
-        </div>
       </div>
     </div>
 
@@ -463,6 +506,17 @@
         <div class="form-actions">
           <button class="btn-cancel" onclick="closeEditEntryModal()">Annuler</button>
           <button class="btn-save" onclick="saveEditedEntry()">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Changelog -->
+    <div id="changelogModal" class="modal">
+      <div class="modal-content">
+        <button class="close-modal" onclick="closeChangelogModal()">&times;</button>
+        <h2>📋 Notes de Version</h2>
+        <div id="changelogContent">
+          <div class="changelog-loading">Chargement...</div>
         </div>
       </div>
     </div>
