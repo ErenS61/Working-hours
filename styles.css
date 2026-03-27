@@ -1142,6 +1142,34 @@ input[type="checkbox"]:disabled + label {
     border-color: #00ffcc;
 }
 
+/* ==================== PDF THEME PICKER ==================== */
+.pdf-theme-picker {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-top: 0.3rem;
+}
+
+.pdf-theme-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.pdf-theme-btn:hover {
+    transform: scale(1.15);
+}
+
+.pdf-theme-btn.active {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.4);
+    transform: scale(1.1);
+}
+
 /* ==================== MENU HAMBURGER ==================== */
 #hamburgerMenu {
     position: fixed;
