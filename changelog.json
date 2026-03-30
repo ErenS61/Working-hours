@@ -1,5 +1,18 @@
 [
     {
+        "version": "1.4.0",
+        "date": "2025-03-30",
+        "label": "Nouveauté",
+        "labelType": "new",
+        "changes": [
+            { "type": "new", "text": "Ajout d'une pastille rouge sur le bouton menu et Notes de version lors d'un changement de version" },
+            { "type": "new", "text": "Support de l'anglais. Possibilité de changer la langue de l'interface depuis le bouton menu" },
+            { "type": "new", "text": "Ajout de plusieurs couleurs dans les thèmes de PDF" },
+            { "type": "fix", "text": "Correction de l'affichage des résumés des heures de travails dans le PDF quand le bouton est coché" }
+        ]
+    },
+    
+    {
         "version": "1.3.0",
         "date": "2025-03-23",
         "label": "Nouveauté",

@@ -1166,7 +1166,7 @@ input[type="checkbox"]:disabled + label {
 
 .pdf-theme-btn.active {
     border-color: #fff;
-    box-shadow: 0 0 0 2px rgba(255,255,255,0.4);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
     transform: scale(1.1);
 }
 
@@ -1191,7 +1191,8 @@ input[type="checkbox"]:disabled + label {
     cursor: pointer;
     font-size: 1.1rem;
     transition: all 0.25s ease;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    overflow: visible;
 }
 
 #hamburgerBtn:hover {
@@ -1213,8 +1214,62 @@ input[type="checkbox"]:disabled + label {
     border-radius: 10px;
     padding: 0.4rem;
     min-width: 190px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
     animation: fadeInScale 0.2s ease-out forwards;
+}
+
+/* ==================== PASTILLE CHANGELOG ==================== */
+@keyframes badgePulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.75);
+    }
+    50% {
+        transform: scale(1.3);
+        box-shadow: 0 0 0 7px rgba(255, 59, 48, 0);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 59, 48, 0);
+    }
+}
+
+/* Wrapper interne du bouton hamburger pour positionner la pastille */
+.hamburger-btn-inner {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+/* Pastille sur le bouton hamburger ☰ */
+.changelog-badge {
+    position: absolute;
+    top: -15px;
+    right: -13px;
+    width: 12px;
+    height: 12px;
+    background: radial-gradient(circle at 35% 35%, #ff6b6b, #e53935);
+    border-radius: 50%;
+    border: 2px solid #1a1a1a;
+    animation: badgePulse 1.8s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 9999;
+}
+
+/* Pastille à droite dans l'item "Notes de version" */
+.changelog-badge-inline {
+    width: 9px;
+    height: 9px;
+    min-width: 9px;
+    background: radial-gradient(circle at 35% 35%, #ff6b6b, #e53935);
+    border-radius: 50%;
+    border: 1.5px solid #2a2a2a;
+    animation: badgePulse 1.8s ease-in-out infinite;
+    margin-left: auto;
+    flex-shrink: 0;
+    display: inline-block;
 }
 
 .hamburger-item {
@@ -1232,6 +1287,7 @@ input[type="checkbox"]:disabled + label {
     transition: all 0.2s ease;
     text-align: left;
     font-family: "Gotham", sans-serif;
+    overflow: visible;
 }
 
 .hamburger-item i {
@@ -1245,7 +1301,66 @@ input[type="checkbox"]:disabled + label {
     color: #fff;
 }
 
-/* ==================== CHANGELOG ==================== */
+.hamburger-separator {
+    height: 1px;
+    background: #333;
+    margin: 0.3rem 0.4rem;
+}
+
+.hamburger-lang-label {
+    font-size: 0.72rem;
+    color: #666;
+    padding: 0.3rem 0.85rem 0.1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: bold;
+}
+
+.hamburger-lang-picker {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.3rem 0.5rem 0.5rem;
+}
+
+.lang-btn {
+    flex: 1;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 7px;
+    color: #aaa;
+    font-size: 0.82rem;
+    padding: 0.45rem 0.4rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    transition: all 0.2s ease;
+    font-family: "Gotham", sans-serif;
+}
+
+.flag-icon {
+    width: 22px;
+    height: 15px;
+    border-radius: 3px;
+    object-fit: cover;
+    flex-shrink: 0;
+    display: block;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.lang-btn:hover {
+    border-color: #00ffcc;
+    color: #fff;
+    background: rgba(0, 255, 204, 0.08);
+}
+
+.lang-btn.active {
+    border-color: #00ffcc;
+    background: rgba(0, 255, 204, 0.12);
+    color: #00ffcc;
+}
+
 .changelog-version-block {
     margin-bottom: 1.5rem;
     border: 1px solid #333;
@@ -1330,9 +1445,15 @@ input[type="checkbox"]:disabled + label {
     font-size: 0.75rem;
 }
 
-.changelog-change-icon.icon-new          { color: #00ffcc; }
-.changelog-change-icon.icon-improvement  { color: #ff9800; }
-.changelog-change-icon.icon-fix          { color: #ff5555; }
+.changelog-change-icon.icon-new {
+    color: #00ffcc;
+}
+.changelog-change-icon.icon-improvement {
+    color: #ff9800;
+}
+.changelog-change-icon.icon-fix {
+    color: #ff5555;
+}
 
 .changelog-loading {
     text-align: center;

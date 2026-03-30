@@ -10,6 +10,77 @@ let entryToEdit = null;
 let verificationCode = "";
 let deleteAllRequested = false;
 
+// ==================== INTERNATIONALISATION ====================
+
+let i18n = {};
+let currentLang = localStorage.getItem("appLang") || "fr";
+
+function t(key) {
+    if (i18n[currentLang] && i18n[currentLang][key] !== undefined) { return i18n[currentLang][key]; }
+    if (i18n.fr && i18n.fr[key] !== undefined) { return i18n.fr[key]; }
+    return key;
+}
+
+function loadLanguages() {
+    return fetch("lang.json?v=" + new Date().getTime())
+        .then((r) => r.json())
+        .then((data) => {
+            i18n = data;
+        })
+        .catch(() => {
+            console.warn("Impossible de charger lang.json — fallback vide.");
+            i18n = { fr: {}, en: {} };
+        });
+}
+
+function setLanguage(lang) {
+    currentLang = lang;
+    localStorage.setItem("appLang", lang);
+    document.querySelectorAll(".lang-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.lang === lang);
+    });
+    applyI18n();
+    generateCalendar();
+    displayMonthEntries();
+    updateSummary();
+    document.getElementById("hamburgerDropdown").style.display = "none";
+    document.getElementById("hamburgerBtn").classList.remove("active");
+    document.removeEventListener("click", closeHamburgerOnOutsideClick);
+}
+
+function applyI18n() {
+    // Éléments texte simples
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+        el.textContent = t(el.getAttribute("data-i18n"));
+    });
+
+    // Éléments avec HTML (ex: <strong>)
+    document.querySelectorAll("[data-i18n-html]").forEach((el) => {
+        el.innerHTML = t(el.getAttribute("data-i18n-html"));
+    });
+
+    // Placeholders traduits
+    document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+        el.placeholder = t(el.getAttribute("data-i18n-placeholder"));
+    });
+
+    // Jours de la semaine du calendrier (tableau calendar.days)
+    const days = t("calendar.days");
+    if (Array.isArray(days)) {
+        document.querySelectorAll("[data-i18n-day]").forEach((el) => {
+            const idx = parseInt(el.getAttribute("data-i18n-day"), 10);
+            if (days[idx] !== undefined) { el.textContent = days[idx]; }
+        });
+    }
+}
+
+function applyInitialLanguage() {
+    applyI18n();
+    document.querySelectorAll(".lang-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.lang === currentLang);
+    });
+}
+
 // ==================== MENU HAMBURGER ====================
 
 function toggleHamburgerMenu() {
@@ -42,6 +113,7 @@ function closeHamburgerOnOutsideClick(e) {
 function showChangelogModal() {
     document.getElementById("changelogModal").style.display = "flex";
     loadChangelog();
+    clearChangelogBadge();
 }
 
 function closeChangelogModal() {
@@ -50,42 +122,51 @@ function closeChangelogModal() {
 
 function loadChangelog() {
     const container = document.getElementById("changelogContent");
-    container.innerHTML = '<div class="changelog-loading">Chargement...</div>';
+    container.innerHTML = `<div class="changelog-loading">${t("changelog.loading")}</div>`;
 
     fetch("changelog.json?v=" + new Date().getTime())
         .then((r) => r.json())
-        .then((versions) => { renderChangelog(versions); })
+        .then((versions) => {
+            renderChangelog(versions);
+        })
         .catch(() => {
-            container.innerHTML = '<div class="changelog-loading">Impossible de charger le changelog.</div>';
+            container.innerHTML = `<div class="changelog-loading">${t("changelog.error")}</div>`;
         });
 }
 
 function renderChangelog(versions) {
     const container = document.getElementById("changelogContent");
     const iconMap = {
-        new:         '<i class="fa-solid fa-plus changelog-change-icon icon-new"></i>',
+        new: '<i class="fa-solid fa-plus changelog-change-icon icon-new"></i>',
         improvement: '<i class="fa-solid fa-arrow-up changelog-change-icon icon-improvement"></i>',
-        fix:         '<i class="fa-solid fa-wrench changelog-change-icon icon-fix"></i>'
+        fix: '<i class="fa-solid fa-wrench changelog-change-icon icon-fix"></i>'
     };
 
     const labelMap = {
-        new:         "Nouveauté",
-        improvement: "Amélioration",
-        fix:         "Correction",
-        launch:      "Lancement"
+        new: t("changelog.label.new"),
+        improvement: t("changelog.label.improvement"),
+        fix: t("changelog.label.fix"),
+        launch: t("changelog.label.launch")
     };
 
-    container.innerHTML = versions.map((v) => {
-        const date = new Date(v.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-        const labelClass = "changelog-label-" + (v.labelType || "new");
-        const label = labelMap[v.labelType] || v.label || "Nouveauté";
+    container.innerHTML = versions
+        .map((v) => {
+            const date = new Date(v.date).toLocaleDateString(currentLang === "en" ? "en-GB" : "fr-FR", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric"
+            });
+            const labelClass = "changelog-label-" + (v.labelType || "new");
+            const label = labelMap[v.labelType] || v.label || "Nouveauté";
 
-        const changes = v.changes.map((c) => {
-            const icon = iconMap[c.type] || iconMap.new;
-            return `<div class="changelog-change-item">${icon}<span>${c.text}</span></div>`;
-        }).join("");
+            const changes = v.changes
+                .map((c) => {
+                    const icon = iconMap[c.type] || iconMap.new;
+                    return `<div class="changelog-change-item">${icon}<span>${c.text}</span></div>`;
+                })
+                .join("");
 
-        return `
+            return `
             <div class="changelog-version-block">
                 <div class="changelog-version-header">
                     <span class="changelog-version-number">v${v.version}</span>
@@ -95,12 +176,57 @@ function renderChangelog(versions) {
                 <div class="changelog-changes">${changes}</div>
             </div>
         `;
-    }).join("");
+        })
+        .join("");
+}
+
+// ==================== PASTILLE CHANGELOG ====================
+
+function initChangelogBadge() {
+    fetch("changelog.json?v=" + new Date().getTime())
+        .then((r) => r.json())
+        .then((versions) => {
+            if (!versions || versions.length === 0) { return; }
+            const latestVersion = versions[0].version;
+            const seenVersion   = localStorage.getItem("changelogSeenVersion");
+
+            if (seenVersion !== latestVersion) {
+                showChangelogBadge();
+            }
+        })
+        .catch(() => { /* silencieux */ });
+}
+
+function showChangelogBadge() {
+    const badge     = document.getElementById("hamburgerBadge");
+    const itemBadge = document.getElementById("changelogItemBadge");
+    if (badge)     { badge.style.display     = "inline-block"; }
+    if (itemBadge) { itemBadge.style.display = "inline-block"; }
+}
+
+function clearChangelogBadge() {
+    const badge     = document.getElementById("hamburgerBadge");
+    const itemBadge = document.getElementById("changelogItemBadge");
+    if (badge)     { badge.style.display     = "none"; }
+    if (itemBadge) { itemBadge.style.display = "none"; }
+
+    // Mémoriser la version vue
+    fetch("changelog.json?v=" + new Date().getTime())
+        .then((r) => r.json())
+        .then((versions) => {
+            if (versions && versions.length > 0) {
+                localStorage.setItem("changelogSeenVersion", versions[0].version);
+            }
+        })
+        .catch(() => { /* silencieux */ });
 }
 
 // Initialisation de l'application
 function initApp() {
     console.log("Initialisation de l'application de suivi des heures");
+
+    // Appliquer la langue sauvegardée
+    applyInitialLanguage();
 
     // Initialiser les boutons flottants
     initFloatingButtons();
@@ -113,6 +239,9 @@ function initApp() {
 
     // Afficher les entrées du mois
     displayMonthEntries();
+
+    // Vérifier la pastille changelog
+    initChangelogBadge();
 
     console.log("Application initialisée");
 }
@@ -160,20 +289,7 @@ function toggleButtons() {
 
 // Générer le calendrier
 function generateCalendar() {
-    const monthNames = [
-        "Janvier",
-        "Février",
-        "Mars",
-        "Avril",
-        "Mai",
-        "Juin",
-        "Juillet",
-        "Août",
-        "Septembre",
-        "Octobre",
-        "Novembre",
-        "Décembre"
-    ];
+    const monthNames = t("calendar.months");
 
     // Mettre à jour l'affichage du mois
     document.getElementById("currentMonth").textContent = `${monthNames[currentMonth]} ${currentYear}`;
@@ -225,7 +341,7 @@ function generateCalendar() {
             const hasNotes = dayEntries.some((entry) => entry.notes && entry.notes.trim() !== "");
 
             // Pour les congés, afficher "Congé" au lieu des heures
-            const displayText = dayHoursInfo.type === "leave" ? "Congé" : `${dayHoursInfo.hours}h`;
+            const displayText = dayHoursInfo.type === "leave" ? t("type.leave") : `${dayHoursInfo.hours}h`;
 
             dayElement.innerHTML = `
                 <div class="day-number">
@@ -322,7 +438,7 @@ function calculateDayHoursWithType(entries) {
         // Pour les congés/absences, on affiche "Congé" au lieu des heures
         if (dominantType === "leave") {
             return {
-                hours: "Congé",
+                hours: t("type.leave"),
                 type: "leave"
             };
         }
@@ -429,7 +545,7 @@ function displayMonthEntries() {
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (monthEntries.length === 0) {
-        entriesList.innerHTML = '<div class="no-entries">Aucune entrée ce mois-ci</div>';
+        entriesList.innerHTML = `<div class="no-entries">${t("entries.none")}</div>`;
         return;
     }
 
@@ -456,7 +572,7 @@ function displayMonthEntries() {
         </div>
         <div class="entry-time">
             <i class="fa-solid fa-umbrella-beach"></i>
-            Congé/Absence
+            ${t("type.leave.full")}
         </div>
         <div class="entry-details">
             <!-- Vide à gauche pour aligner le badge à droite -->
@@ -484,7 +600,7 @@ function displayMonthEntries() {
                 <div class="entry-time">
                     <i class="fa-solid fa-clock"></i>
                     ${entry.startTime} - ${entry.endTime}
-                    ${entry.endDate && entry.endDate !== entry.date ? " (nuit)" : ""}
+                    ${entry.endDate && entry.endDate !== entry.date ? " " + t("entry.night.label") : ""}
                 </div>
                 <div class="entry-details">
                     <span class="entry-hours ${typeClass}">
@@ -496,10 +612,10 @@ function displayMonthEntries() {
                 </div>
                 ${entry.notes ? `<div class="entry-notes">${entry.notes}</div>` : ""}
                 <div class="entry-actions">
-                    <button class="entry-edit" onclick="editEntry('${entry.id}')" title="Modifier">
+                    <button class="entry-edit" onclick="editEntry('${entry.id}')" title="${t("btn.edit")}">
                         <i class="fa-solid fa-pencil"></i>
                     </button>
-                    <button class="entry-delete" onclick="showDeleteConfirm('${entry.id}')" title="Supprimer">
+                    <button class="entry-delete" onclick="showDeleteConfirm('${entry.id}')" title="${t("btn.delete")}">
                         <i class="fa-solid fa-trash"></i>
                     </button>
                 </div>
@@ -512,7 +628,8 @@ function displayMonthEntries() {
 
 // Formater une date
 function formatDate(date) {
-    return date.toLocaleDateString("fr-FR", {
+    const locale = currentLang === "en" ? "en-GB" : "fr-FR";
+    return date.toLocaleDateString(locale, {
         weekday: "short",
         day: "2-digit",
         month: "short"
@@ -533,14 +650,14 @@ function getTypeClass(type) {
 
 // Obtenir le libellé du type d'heures
 function getTypeLabel(type) {
-    const labels = {
-        normal: "Normales",
-        overtime: "Suppl.",
-        night: "Nuit",
-        weekend: "Week-end",
-        leave: "Congé"
+    const keys = {
+        normal: "type.normal",
+        overtime: "type.overtime",
+        night: "type.night",
+        weekend: "type.weekend",
+        leave: "type.leave"
     };
-    return labels[type] || "Normales";
+    return t(keys[type] || "type.normal");
 }
 
 // Afficher le modal pour ajouter une entrée
@@ -571,9 +688,9 @@ function showAddEntryModal() {
 // Basculer entre les onglets du modal d'ajout
 function switchTab(tab) {
     document.getElementById("panelSingle").style.display = tab === "single" ? "block" : "none";
-    document.getElementById("panelMulti").style.display  = tab === "multi"  ? "block" : "none";
+    document.getElementById("panelMulti").style.display = tab === "multi" ? "block" : "none";
     document.getElementById("tabSingle").classList.toggle("active", tab === "single");
-    document.getElementById("tabMulti").classList.toggle("active",  tab === "multi");
+    document.getElementById("tabMulti").classList.toggle("active", tab === "multi");
 }
 
 // Initialiser le panneau multi avec une première ligne vide
@@ -595,52 +712,52 @@ function addMultiRow() {
 
     row.innerHTML = `
         <div class="multi-row-header">
-            <span class="multi-row-number">Entrée ${index + 1}</span>
+            <span class="multi-row-number">${t("multi.entry.label")} ${index + 1}</span>
             <div style="display:flex;gap:0.4rem;">
-                <button class="multi-row-duplicate" onclick="duplicateMultiRow(this)" title="Dupliquer cette ligne">
+                <button class="multi-row-duplicate" onclick="duplicateMultiRow(this)" title="${t("multi.row.duplicate")}">
                     <i class="fa-solid fa-copy"></i>
                 </button>
-                <button class="multi-row-delete" onclick="removeMultiRow(this)" title="Supprimer cette ligne">
+                <button class="multi-row-delete" onclick="removeMultiRow(this)" title="${t("multi.row.delete")}">
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </div>
         </div>
         <div class="multi-row-grid">
             <div class="form-group">
-                <label>Date :</label>
+                <label>${t("multi.row.date")}</label>
                 <input type="date" class="form-input mr-date" value="${today}" />
             </div>
             <div class="form-group">
-                <label>Type :</label>
+                <label>${t("multi.row.type")}</label>
                 <div class="select-wrapper">
                     <select class="form-input mr-type" onchange="handleMultiRowTypeChange(this)">
-                        <option value="normal">Normales</option>
-                        <option value="overtime">Supplémentaires</option>
-                        <option value="night">Nuit</option>
-                        <option value="weekend">Week-end</option>
-                        <option value="leave">Congé</option>
+                        <option value="normal">${t("multi.type.normal")}</option>
+                        <option value="overtime">${t("multi.type.overtime")}</option>
+                        <option value="night">${t("multi.type.night")}</option>
+                        <option value="weekend">${t("multi.type.weekend")}</option>
+                        <option value="leave">${t("multi.type.leave")}</option>
                     </select>
                 </div>
             </div>
             <div class="form-group">
-                <label>Début :</label>
+                <label>${t("multi.row.start")}</label>
                 <input type="time" class="form-input mr-start" value="08:00" />
             </div>
             <div class="form-group">
-                <label>Fin :</label>
+                <label>${t("multi.row.end")}</label>
                 <input type="time" class="form-input mr-end" value="17:00" />
             </div>
             <div class="multi-row-night">
                 <input type="checkbox" class="mr-night" onchange="toggleMultiRowNight(this)" />
-                <label>Nuit étalée sur 2 jours</label>
+                <label>${t("multi.row.night")}</label>
             </div>
             <div class="form-group multi-row-enddate mr-enddate-group">
-                <label>Date de fin :</label>
+                <label>${t("multi.row.endDate")}</label>
                 <input type="date" class="form-input mr-enddate" />
             </div>
             <div class="form-group multi-row-full">
-                <label>Notes (optionnel) :</label>
-                <input type="text" class="form-input mr-notes" placeholder="Notes..." />
+                <label>${t("multi.row.notes")}</label>
+                <input type="text" class="form-input mr-notes" :placeholder="${t("multi.row.notesPlaceholder")}" placeholder="${t("multi.row.notesPlaceholder")}" />
             </div>
         </div>
     `;
@@ -654,7 +771,7 @@ function removeMultiRow(btn) {
     const row = btn.closest(".multi-entry-row");
     const list = document.getElementById("multiEntriesList");
     if (list.children.length <= 1) {
-        showSystemMessage("Il doit rester au moins une entrée", true);
+        showSystemMessage(t("error.minRow"), true);
         return;
     }
     row.remove();
@@ -667,22 +784,22 @@ function duplicateMultiRow(btn) {
     const list = document.getElementById("multiEntriesList");
 
     // Lire les valeurs de la ligne source
-    const date      = row.querySelector(".mr-date").value;
-    const type      = row.querySelector(".mr-type").value;
+    const date = row.querySelector(".mr-date").value;
+    const type = row.querySelector(".mr-type").value;
     const startTime = row.querySelector(".mr-start").value;
-    const endTime   = row.querySelector(".mr-end").value;
-    const night     = row.querySelector(".mr-night").checked;
-    const endDate   = row.querySelector(".mr-enddate").value;
-    const notes     = row.querySelector(".mr-notes").value;
+    const endTime = row.querySelector(".mr-end").value;
+    const night = row.querySelector(".mr-night").checked;
+    const endDate = row.querySelector(".mr-enddate").value;
+    const notes = row.querySelector(".mr-notes").value;
 
     // Ajouter une nouvelle ligne vide puis remplir avec les valeurs copiées
     addMultiRow();
     const newRow = list.lastElementChild;
 
-    newRow.querySelector(".mr-date").value  = date;
-    newRow.querySelector(".mr-type").value  = type;
+    newRow.querySelector(".mr-date").value = date;
+    newRow.querySelector(".mr-type").value = type;
     newRow.querySelector(".mr-start").value = startTime;
-    newRow.querySelector(".mr-end").value   = endTime;
+    newRow.querySelector(".mr-end").value = endTime;
     newRow.querySelector(".mr-notes").value = notes;
 
     // Appliquer le type (peut désactiver les heures si congé)
@@ -703,36 +820,42 @@ function renumberMultiRows() {
     rows.forEach((row, i) => {
         row.dataset.index = i;
         const label = row.querySelector(".multi-row-number");
-        if (label) { label.textContent = "Entrée " + (i + 1); }
+        if (label) {
+            label.textContent = t("multi.entry.label") + " " + (i + 1);
+        }
     });
 }
 
 // Gérer le changement de type dans une ligne multi
 function handleMultiRowTypeChange(select) {
     const row = select.closest(".multi-entry-row");
-    const startInput  = row.querySelector(".mr-start");
-    const endInput    = row.querySelector(".mr-end");
-    const nightCheck  = row.querySelector(".mr-night");
-    const nightLabel  = row.querySelector(".multi-row-night");
+    const startInput = row.querySelector(".mr-start");
+    const endInput = row.querySelector(".mr-end");
+    const nightCheck = row.querySelector(".mr-night");
+    const nightLabel = row.querySelector(".multi-row-night");
 
     if (select.value === "leave") {
         startInput.disabled = true;
-        endInput.disabled   = true;
+        endInput.disabled = true;
         startInput.style.opacity = "0.5";
-        endInput.style.opacity   = "0.5";
-        nightCheck.checked  = false;
+        endInput.style.opacity = "0.5";
+        nightCheck.checked = false;
         nightCheck.disabled = true;
         nightLabel.style.opacity = "0.4";
         toggleMultiRowNight(nightCheck);
     } else {
         startInput.disabled = false;
-        endInput.disabled   = false;
+        endInput.disabled = false;
         startInput.style.opacity = "1";
-        endInput.style.opacity   = "1";
+        endInput.style.opacity = "1";
         nightCheck.disabled = false;
         nightLabel.style.opacity = "1";
-        if (!startInput.value) { startInput.value = "08:00"; }
-        if (!endInput.value)   { endInput.value   = "17:00"; }
+        if (!startInput.value) {
+            startInput.value = "08:00";
+        }
+        if (!endInput.value) {
+            endInput.value = "17:00";
+        }
     }
 }
 
@@ -740,7 +863,7 @@ function handleMultiRowTypeChange(select) {
 function toggleMultiRowNight(checkbox) {
     const row = checkbox.closest(".multi-entry-row");
     const endDateGroup = row.querySelector(".mr-enddate-group");
-    const dateInput    = row.querySelector(".mr-date");
+    const dateInput = row.querySelector(".mr-date");
     const endDateInput = row.querySelector(".mr-enddate");
 
     if (checkbox.checked) {
@@ -764,48 +887,54 @@ function saveMultiEntries() {
     let hasError = false;
 
     rows.forEach((row, i) => {
-        const date      = row.querySelector(".mr-date").value;
-        const type      = row.querySelector(".mr-type").value;
+        const date = row.querySelector(".mr-date").value;
+        const type = row.querySelector(".mr-type").value;
         const startTime = row.querySelector(".mr-start").value;
-        const endTime   = row.querySelector(".mr-end").value;
-        const night     = row.querySelector(".mr-night").checked;
-        const endDate   = night ? row.querySelector(".mr-enddate").value : date;
-        const notes     = row.querySelector(".mr-notes").value;
+        const endTime = row.querySelector(".mr-end").value;
+        const night = row.querySelector(".mr-night").checked;
+        const endDate = night ? row.querySelector(".mr-enddate").value : date;
+        const notes = row.querySelector(".mr-notes").value;
 
         if (!date) {
-            showSystemMessage(`Entrée ${i + 1} : date manquante`, true);
+            showSystemMessage(`${t("multi.entry.label")} ${i + 1}${t("error.rowDate")}`, true);
             hasError = true;
             return;
         }
         if (type !== "leave" && (!startTime || !endTime)) {
-            showSystemMessage(`Entrée ${i + 1} : heures manquantes`, true);
+            showSystemMessage(`${t("multi.entry.label")} ${i + 1}${t("error.rowTimes")}`, true);
             hasError = true;
             return;
         }
         if (night && !endDate) {
-            showSystemMessage(`Entrée ${i + 1} : date de fin manquante`, true);
+            showSystemMessage(`${t("multi.entry.label")} ${i + 1}${t("error.rowEndDate")}`, true);
             hasError = true;
             return;
         }
 
         const entry = {
-            id:        Date.now().toString() + "_" + i,
-            date:      date,
+            id: Date.now().toString() + "_" + i,
+            date: date,
             startTime: type === "leave" ? "00:00" : startTime,
-            endTime:   type === "leave" ? "00:00" : endTime,
-            type:      type,
-            notes:     notes,
+            endTime: type === "leave" ? "00:00" : endTime,
+            type: type,
+            notes: notes,
             spreadOverTwoDays: night,
             createdAt: new Date().toISOString()
         };
-        if (night) { entry.endDate = endDate; }
+        if (night) {
+            entry.endDate = endDate;
+        }
 
         toSave.push(entry);
     });
 
-    if (hasError) { return; }
+    if (hasError) {
+        return;
+    }
 
-    toSave.forEach((entry) => { workEntries.push(entry); });
+    toSave.forEach((entry) => {
+        workEntries.push(entry);
+    });
     localStorage.setItem("workEntries", JSON.stringify(workEntries));
 
     generateCalendar();
@@ -813,7 +942,7 @@ function saveMultiEntries() {
     updateSummary();
 
     closeAddEntryModal();
-    showSystemMessage(`${toSave.length} entrée(s) enregistrée(s) avec succès !`);
+    showSystemMessage(`${toSave.length} ${t("msg.multiSaved")}`);
 }
 
 // Ajouter cette fonction pour gérer les changements de type d'entrée
@@ -890,19 +1019,19 @@ function saveEntry() {
 
     // Validation de base
     if (!date) {
-        showSystemMessage("Veuillez sélectionner une date", true);
+        showSystemMessage(t("error.date"), true);
         return;
     }
 
     // Si ce n'est pas un congé, valider les heures
     if (type !== "leave") {
         if (!startTime || !endTime) {
-            showSystemMessage("Veuillez remplir les heures de début et de fin", true);
+            showSystemMessage(t("error.times"), true);
             return;
         }
 
         if (spreadOverTwoDays && !endDate) {
-            showSystemMessage("Veuillez spécifier la date de fin", true);
+            showSystemMessage(t("error.endDate"), true);
             return;
         }
 
@@ -912,7 +1041,7 @@ function saveEntry() {
             const endDateObj = new Date(endDate);
 
             if (endDateObj < startDateObj) {
-                showSystemMessage("La date de fin doit être après la date de début", true);
+                showSystemMessage(t("error.endDateOrder"), true);
                 return;
             }
         }
@@ -933,7 +1062,7 @@ function saveEntry() {
 
         const hours = calculateHours(entryData);
         if (hours <= 0) {
-            showSystemMessage("La durée des heures doit être positive", true);
+            showSystemMessage(t("error.duration"), true);
             return;
         }
     }
@@ -973,7 +1102,7 @@ function saveEntry() {
 
     // Fermer le modal et afficher un message système
     closeAddEntryModal();
-    const message = type === "leave" ? "Congé enregistré avec succès !" : "Entrée enregistrée avec succès !";
+    const message = type === "leave" ? t("msg.leave.saved") : t("msg.saved");
     showSystemMessage(message);
 }
 
@@ -982,7 +1111,7 @@ function editEntry(id) {
     entryToEdit = workEntries.find((entry) => entry.id === id);
 
     if (!entryToEdit) {
-        showSystemMessage("Entrée non trouvée", true);
+        showSystemMessage(t("msg.notFound"), true);
         return;
     }
 
@@ -1085,7 +1214,9 @@ function showDeleteConfirm(id) {
     entryToDelete = id;
 
     // Afficher le modal de confirmation
-    document.getElementById("confirmMessage").textContent = "Voulez-vous vraiment supprimer cette entrée ?";
+    document.getElementById("confirmMessage").textContent = t(
+        "confirm.delete" in i18n[currentLang] ? "confirm.delete" : "error.fields"
+    );
     document.getElementById("confirmModal").style.display = "flex";
 
     // Configurer le bouton de confirmation
@@ -1111,7 +1242,7 @@ function deleteEntry(id) {
     updateSummary();
     generateCalendar();
 
-    showSystemMessage("Entrée supprimée", true);
+    showSystemMessage(t("msg.deleted"), true);
 }
 
 // Afficher le modal d'édition
@@ -1187,12 +1318,12 @@ function saveEditedEntry() {
 
     // Validation
     if (!date || !startTime || !endTime) {
-        showSystemMessage("Veuillez remplir tous les champs obligatoires", true);
+        showSystemMessage(t("error.fields"), true);
         return;
     }
 
     if (spreadOverTwoDays && !endDate) {
-        showSystemMessage("Veuillez spécifier la date de fin", true);
+        showSystemMessage(t("error.endDate"), true);
         return;
     }
 
@@ -1202,7 +1333,7 @@ function saveEditedEntry() {
         const endDateObj = new Date(endDate);
 
         if (endDateObj < startDateObj) {
-            showSystemMessage("La date de fin doit être après la date de début", true);
+            showSystemMessage(t("error.endDateOrder"), true);
             return;
         }
     }
@@ -1224,7 +1355,7 @@ function saveEditedEntry() {
 
         const hours = calculateHours(entryData);
         if (hours <= 0) {
-            showSystemMessage("La durée des heures doit être positive", true);
+            showSystemMessage(t("error.duration"), true);
             return;
         }
     }
@@ -1253,13 +1384,13 @@ function saveEditedEntry() {
 
     // Fermer le modal et afficher un message système
     closeEditEntryModal();
-    showSystemMessage("Entrée modifiée avec succès !");
+    showSystemMessage(t("msg.edited"));
 }
 
 // Afficher les entrées d'un jour spécifique
 function showDayEntries(day, entries) {
     if (entries.length === 0) {
-        let message = `Aucune entrée pour le ${day}/${currentMonth + 1}/${currentYear}`;
+        let message = `${t("entries.day.none")} ${day}/${currentMonth + 1}/${currentYear}`;
         showSystemMessage(message, true);
         return;
     }
@@ -1300,7 +1431,7 @@ function showDayEntries(day, entries) {
             const endDate = new Date(entry.endDate);
             const endDay = endDate.getDate().toString().padStart(2, "0");
             const endMonth = (endDate.getMonth() + 1).toString().padStart(2, "0");
-            dateInfo = ` (jusqu'au ${endDay}/${endMonth})`;
+            dateInfo = ` (${t("entry.until")} ${endDay}/${endMonth})`;
         }
 
         // Pour les congés/absences
@@ -1308,7 +1439,7 @@ function showDayEntries(day, entries) {
             message += `
                 <div style="margin-bottom: 20px; padding: 15px; background: rgba(255, 255, 255, 0.05); border-radius: 10px;"> <!-- SUPPRIMÉ: border-left: 4px solid #ffcc00 -->
                     <div style="font-weight: bold; margin-bottom: 8px; color: #00ffcc; font-size: 16px;">
-                        ${emoji} Congé/Absence${dateInfo}
+                        ${emoji} ${t("type.leave.full")}${dateInfo}
                     </div>`;
 
             if (entry.notes && entry.notes.trim() !== "") {
@@ -1321,10 +1452,10 @@ function showDayEntries(day, entries) {
             message += `
                     <div style="margin-top: 12px; display: flex; gap: 12px;">
                         <button onclick="editEntry('${entry.id}'); closeInfoModal();" style="padding: 8px 12px; background: #00ffcc; color: #000; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; flex: 1; font-weight: bold; transition: all 0.3s;">
-                            Modifier
+                            ${t("btn.edit")}
                         </button>
                         <button onclick="showDeleteConfirm('${entry.id}'); closeInfoModal();" style="padding: 8px 12px; background: #ff5555; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; flex: 1; font-weight: bold; transition: all 0.3s;">
-                            Supprimer
+                            ${t("btn.delete")}
                         </button>
                     </div>
                 </div>
@@ -1336,7 +1467,7 @@ function showDayEntries(day, entries) {
                         ${emoji} ${entry.startTime} - ${entry.endTime} <span style="color: #ffffff; font-weight: normal;">(${hours.toFixed(1)}h)</span>${dateInfo}
                     </div>
                     <div style="margin-left: 5px; margin-top: 6px; color: #ccc; font-size: 14px;">
-                        🏷️ Type : ${getTypeLabel(entry.type)}
+                        ${t("entry.tag.type")} ${getTypeLabel(entry.type)}
                     </div>`;
 
             if (entry.notes && entry.notes.trim() !== "") {
@@ -1349,10 +1480,10 @@ function showDayEntries(day, entries) {
             message += `
                     <div style="margin-top: 12px; display: flex; gap: 12px;">
                         <button onclick="editEntry('${entry.id}'); closeInfoModal();" style="padding: 8px 12px; background: #00ffcc; color: #000; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; flex: 1; font-weight: bold; transition: all 0.3s;">
-                            Modifier
+                            ${t("btn.edit")}
                         </button>
                         <button onclick="showDeleteConfirm('${entry.id}'); closeInfoModal();" style="padding: 8px 12px; background: #ff5555; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; flex: 1; font-weight: bold; transition: all 0.3s;">
-                            Supprimer
+                            ${t("btn.delete")}
                         </button>
                     </div>
                 </div>
@@ -1399,12 +1530,11 @@ function showDayEntries(day, entries) {
             </button>
         `;
     } else {
-        formActions.innerHTML =
-            '<button class="btn-cancel" onclick="closeInfoModal()" style="width: 100%; font-weight: bold; padding: 12px; font-size: 14px;">OK</button>';
+        formActions.innerHTML = `<button class="btn-cancel" onclick="closeInfoModal()" style="width: 100%; font-weight: bold; padding: 12px; font-size: 14px;">${t("btn.ok")}</button>`;
     }
 
     // Mettre à jour le titre avec une taille plus grande
-    document.getElementById("infoTitle").textContent = `Détails du ${titleDate}`;
+    document.getElementById("infoTitle").textContent = `${t("entries.day.title")} ${titleDate}`;
     document.getElementById("infoTitle").style.fontSize = "22px";
 
     const modal = document.getElementById("infoModal");
@@ -1443,7 +1573,7 @@ function deleteAllEntriesForDay(day, month, year) {
 
     // Fermer le modal et afficher un message
     closeInfoModal();
-    showSystemMessage(`${deletedCount} entrée(s) supprimée(s) pour ce jour`);
+    showSystemMessage(`${deletedCount} ${t("msg.deleted.day")}`);
 }
 
 // Afficher le modal d'information
@@ -1491,7 +1621,7 @@ function importData() {
     const mergeData = document.getElementById("mergeData").checked;
 
     if (!fileInput.files.length) {
-        showSystemMessage("Veuillez sélectionner un fichier", true);
+        showSystemMessage(t("error.file"), true);
         return;
     }
 
@@ -1504,7 +1634,7 @@ function importData() {
 
             // Validation des données
             if (!Array.isArray(importedData)) {
-                showSystemMessage("Le fichier JSON doit contenir un tableau", true);
+                showSystemMessage(t("error.jsonArray"), true);
                 return;
             }
 
@@ -1514,7 +1644,7 @@ function importData() {
             );
 
             if (!isValid) {
-                showSystemMessage("Le fichier JSON a un format invalide", true);
+                showSystemMessage(t("error.jsonFormat"), true);
                 return;
             }
 
@@ -1526,10 +1656,10 @@ function importData() {
                 const existingIds = new Set(workEntries.map((entry) => entry.id));
                 const newEntries = importedData.filter((entry) => !existingIds.has(entry.id));
                 workEntries = [...workEntries, ...newEntries];
-                message = `${newEntries.length} nouvelles entrées importées (fusion)`;
+                message = `${newEntries.length} ${t("import.merged")}`;
             } else {
                 workEntries = importedData;
-                message = `${importedData.length} entrées importées (remplacement)`;
+                message = `${importedData.length} ${t("import.replaced")}`;
             }
 
             // Sauvegarder dans le localStorage
@@ -1544,12 +1674,12 @@ function importData() {
             showSystemMessage(message);
         } catch (error) {
             console.error("Erreur d'importation:", error);
-            showSystemMessage("Erreur lors de l'importation du fichier", true);
+            showSystemMessage(t("msg.importError"), true);
         }
     };
 
     reader.onerror = function () {
-        showSystemMessage("Erreur de lecture du fichier", true);
+        showSystemMessage(t("msg.importReadError"), true);
     };
 
     reader.readAsText(file);
@@ -1651,25 +1781,25 @@ function closeAllModals() {
 // Générer le graphique des heures
 function generateChart() {
     const ctx = document.getElementById("hoursChart").getContext("2d");
-
+ 
     // Supprimer l'ancien graphique s'il existe
     if (window.hoursChartInstance) {
         window.hoursChartInstance.destroy();
     }
-
+ 
     // Calculer les heures par semaine (exclure les congés)
     const weeklyHours = calculateWeeklyHours();
-
+ 
     // Si pas de données, afficher un message
     if (weeklyHours.labels.length === 0 || weeklyHours.hours.every((h) => h === 0)) {
         // Créer un graphique vide avec un message
         window.hoursChartInstance = new Chart(ctx, {
             type: "bar",
             data: {
-                labels: ["Aucune donnée"],
+                labels: [t("chart.noDataLabel")],
                 datasets: [
                     {
-                        label: "Heures travaillées",
+                        label: t("chart.worked"),
                         data: [0],
                         backgroundColor: "#333",
                         borderColor: "#555",
@@ -1684,7 +1814,7 @@ function generateChart() {
                         beginAtZero: true,
                         title: {
                             display: true,
-                            text: "Heures"
+                            text: t("chart.hours")
                         },
                         ticks: {
                             callback: function (value) {
@@ -1695,7 +1825,7 @@ function generateChart() {
                     x: {
                         title: {
                             display: true,
-                            text: "Semaines"
+                            text: t("chart.weeks")
                         }
                     }
                 },
@@ -1716,14 +1846,14 @@ function generateChart() {
                             const ctx = chart.ctx;
                             const width = chart.width;
                             const height = chart.height;
-
+ 
                             chart.clear();
                             ctx.save();
                             ctx.textAlign = "center";
                             ctx.textBaseline = "middle";
                             ctx.font = "16px Gotham";
                             ctx.fillStyle = "#aaa";
-                            ctx.fillText("Aucune donnée ce mois-ci", width / 2, height / 2);
+                            ctx.fillText(t("chart.noData"), width / 2, height / 2);
                             ctx.restore();
                         }
                     }
@@ -1732,7 +1862,7 @@ function generateChart() {
         });
         return;
     }
-
+ 
     // Sinon, créer le graphique normal
     window.hoursChartInstance = new Chart(ctx, {
         type: "bar",
@@ -1740,7 +1870,7 @@ function generateChart() {
             labels: weeklyHours.labels,
             datasets: [
                 {
-                    label: "Heures travaillées",
+                    label: t("chart.worked"),
                     data: weeklyHours.hours,
                     backgroundColor: "#00ffcc",
                     borderColor: "#00ccaa",
@@ -1755,7 +1885,7 @@ function generateChart() {
                     beginAtZero: true,
                     title: {
                         display: true,
-                        text: "Heures"
+                        text: t("chart.hours")
                     },
                     ticks: {
                         callback: function (value) {
@@ -1766,7 +1896,7 @@ function generateChart() {
                 x: {
                     title: {
                         display: true,
-                        text: "Semaines"
+                        text: t("chart.weeks")
                     }
                 }
             }
@@ -1810,7 +1940,7 @@ function calculateWeeklyHours() {
         .sort((a, b) => a - b);
 
     // Afficher simplement les numéros de semaine
-    const labels = weeks.map((week) => `Sem. ${week}`);
+    const labels = weeks.map((week) => `${t("chart.weekPrefix")} ${week}`);
     const hours = weeks.map((week) => weeklyHours[week]);
 
     return {
@@ -1838,7 +1968,7 @@ function exportData() {
     linkElement.setAttribute("download", exportFileDefaultName);
     linkElement.click();
 
-    showSystemMessage("Données exportées avec succès !");
+    showSystemMessage(t("msg.exported"));
 }
 
 // Fonction de rafraîchissement de la page
@@ -1953,7 +2083,7 @@ function deleteAllEntries() {
     generateCalendar();
 
     // Afficher un message dans un modal d'information
-    showInfoMessage("Toutes les entrées ont été supprimées définitivement.", "Suppression terminée", false);
+    showInfoMessage(t("msg.deleteAll.done"), t("msg.deleteAll.title"), false);
 
     console.log("Toutes les entrées ont été supprimées");
 }
@@ -1979,7 +2109,7 @@ function showPDFModal() {
     document.getElementById("includeNotes").checked = true;
     document.getElementById("colorizeRows").checked = true;
     document.getElementById("pdfTitle").value =
-        `Suivi des Heures - ${today.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`;
+        `${t("pdf.title.month")} - ${today.toLocaleDateString(currentLang === "en" ? "en-GB" : "fr-FR", { month: "long", year: "numeric" })}`;
 
     // Init sélecteur de thème
     document.querySelectorAll(".pdf-theme-btn").forEach((btn) => {
@@ -1990,7 +2120,9 @@ function showPDFModal() {
         };
     });
     const firstThemeBtn = document.querySelector(".pdf-theme-btn");
-    if (firstThemeBtn) { firstThemeBtn.classList.add("active"); }
+    if (firstThemeBtn) {
+        firstThemeBtn.classList.add("active");
+    }
 
     document.getElementById("pdfModal").style.display = "flex";
     toggleButtons();
@@ -2005,91 +2137,117 @@ function closePDFModal() {
 function generatePDF() {
     console.log("generatePDF appelé");
 
-    const startDate    = document.getElementById("pdfStartDate").value;
-    const endDate      = document.getElementById("pdfEndDate").value;
+    const startDate = document.getElementById("pdfStartDate").value;
+    const endDate = document.getElementById("pdfEndDate").value;
     const includeSummary = document.getElementById("includeSummary").checked;
-    const includeNotes   = document.getElementById("includeNotes").checked;
-    const colorizeRows   = document.getElementById("colorizeRows").checked;
-    const pdfTitle       = document.getElementById("pdfTitle").value || "Suivi des Heures de Travail";
-    const pdfAuthor      = document.getElementById("pdfAuthor").value.trim();
-    const pdfCompany     = document.getElementById("pdfCompany").value.trim();
+    const includeNotes = document.getElementById("includeNotes").checked;
+    const colorizeRows = document.getElementById("colorizeRows").checked;
+    const pdfTitle = document.getElementById("pdfTitle").value || "Suivi des Heures de Travail";
+    const pdfAuthor = document.getElementById("pdfAuthor").value.trim();
+    const pdfCompany = document.getElementById("pdfCompany").value.trim();
 
     const activeThemeBtn = document.querySelector(".pdf-theme-btn.active");
-    const selectedTheme  = activeThemeBtn ? activeThemeBtn.dataset.theme : "teal";
+    const selectedTheme = activeThemeBtn ? activeThemeBtn.dataset.theme : "teal";
 
     if (!startDate || !endDate) {
-        showSystemMessage("Veuillez sélectionner une période", true);
+        showSystemMessage(t("error.period"), true);
         return;
     }
 
     if (new Date(startDate) > new Date(endDate)) {
-        showSystemMessage("La date de début doit être antérieure à la date de fin", true);
+        showSystemMessage(t("error.periodOrder"), true);
         return;
     }
 
     const filteredEntries = workEntries
         .filter((entry) => {
-            const entryDate    = new Date(entry.date);
+            const entryDate = new Date(entry.date);
             const entryEndDate = entry.endDate ? new Date(entry.endDate) : entryDate;
             const start = new Date(startDate);
-            const end   = new Date(endDate);
+            const end = new Date(endDate);
             return (entryDate >= start && entryDate <= end) || (entryEndDate >= start && entryEndDate <= end);
         })
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 
     if (filteredEntries.length === 0) {
-        showSystemMessage("Aucune entrée dans la période sélectionnée", true);
+        showSystemMessage(t("error.noEntries"), true);
         return;
     }
 
-    createPDF(filteredEntries, startDate, endDate, includeSummary, includeNotes, pdfTitle, pdfAuthor, pdfCompany, selectedTheme, colorizeRows);
+    createPDF(
+        filteredEntries,
+        startDate,
+        endDate,
+        includeSummary,
+        includeNotes,
+        pdfTitle,
+        pdfAuthor,
+        pdfCompany,
+        selectedTheme,
+        colorizeRows
+    );
     closePDFModal();
 }
 
-function createPDF(entries, startDate, endDate, includeSummary, includeNotes, title, author, company, themeName, colorizeRows) {
+function createPDF(
+    entries,
+    startDate,
+    endDate,
+    includeSummary,
+    includeNotes,
+    title,
+    author,
+    company,
+    themeName,
+    colorizeRows
+) {
     console.log("Création du PDF complet avec", entries.length, "entrées");
 
     // ==================== PALETTES DE THÈMES ====================
     const themes = {
-        teal:   { primary: [0, 150, 136],   light: [224, 247, 245], border: [160, 220, 215] },
-        blue:   { primary: [21, 101, 192],   light: [227, 238, 252], border: [160, 195, 235] },
-        purple: { primary: [106, 27, 154],   light: [237, 224, 250], border: [190, 160, 230] },
-        red:    { primary: [198, 40, 40],    light: [252, 230, 230], border: [230, 175, 175] },
-        green:  { primary: [46, 125, 50],    light: [227, 245, 228], border: [160, 215, 162] },
-        orange: { primary: [230, 81, 0],     light: [253, 237, 220], border: [235, 190, 150] },
-        pink:   { primary: [173, 20, 87],    light: [252, 228, 240], border: [225, 165, 195] },
-        indigo: { primary: [40, 53, 147],    light: [228, 230, 250], border: [165, 170, 230] },
-        cyan:   { primary: [0, 131, 143],    light: [224, 247, 250], border: [155, 220, 225] },
-        brown:  { primary: [78, 52, 46],     light: [239, 231, 230], border: [195, 175, 170] },
-        slate:  { primary: [55, 71, 79],     light: [230, 235, 238], border: [170, 185, 192] },
-        gold:   { primary: [245, 127, 23],   light: [255, 248, 225], border: [240, 210, 150] }
+        teal:   { primary: [0, 191, 165],    light: [220, 252, 248], border: [140, 230, 220] },
+        blue:   { primary: [30, 136, 229],   light: [220, 240, 255], border: [140, 200, 245] },
+        purple: { primary: [142, 36, 170],   light: [240, 220, 252], border: [200, 155, 230] },
+        red:    { primary: [229, 57, 53],    light: [255, 225, 225], border: [240, 165, 163] },
+        green:  { primary: [67, 160, 71],    light: [220, 248, 222], border: [150, 220, 155] },
+        orange: { primary: [251, 140, 0],    light: [255, 243, 220], border: [245, 200, 140] },
+        pink:   { primary: [233, 30, 140],   light: [255, 220, 242], border: [240, 155, 205] },
+        indigo: { primary: [57, 73, 171],    light: [225, 228, 252], border: [155, 162, 235] },
+        cyan:   { primary: [0, 172, 193],    light: [218, 248, 252], border: [140, 225, 235] },
+        lime:   { primary: [192, 202, 51],   light: [245, 248, 210], border: [215, 225, 150] },
+        amber:  { primary: [255, 179, 0],    light: [255, 248, 218], border: [245, 215, 140] },
+        coral:  { primary: [255, 82, 82],    light: [255, 228, 228], border: [245, 170, 170] },
+        mint:   { primary: [0, 230, 118],    light: [215, 255, 238], border: [140, 240, 195] },
+        violet: { primary: [124, 77, 255],   light: [235, 225, 255], border: [185, 165, 250] },
+        rose:   { primary: [245, 0, 87],     light: [255, 218, 232], border: [245, 150, 190] },
+        sky:    { primary: [41, 182, 246],   light: [218, 245, 255], border: [145, 215, 250] }
     };
     const theme = themes[themeName] || themes.teal;
-    const T = theme.primary;   // couleur principale [r,g,b]
-    const TL = theme.light;    // fond clair
-    const TB = theme.border;   // bordure
+    const T = theme.primary; // couleur principale [r,g,b]
+    const TL = theme.light; // fond clair
+    const TB = theme.border; // bordure
 
     // Couleurs fixes par type de ligne
     const typeRowColors = {
-        normal:   [240, 250, 241],
+        normal: [240, 250, 241],
         overtime: [255, 245, 230],
-        night:    [245, 235, 252],
-        weekend:  [255, 232, 232],
-        leave:    [255, 252, 220]
+        night: [245, 235, 252],
+        weekend: [255, 232, 232],
+        leave: [255, 252, 220]
     };
     const typeTextColors = {
-        normal:   [76, 175, 80],
+        normal: [76, 175, 80],
         overtime: [255, 152, 0],
-        night:    [156, 39, 176],
-        weekend:  [243, 33, 33],
-        leave:    [180, 140, 0]
+        night: [156, 39, 176],
+        weekend: [243, 33, 33],
+        leave: [180, 140, 0]
     };
 
     try {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF("p", "mm", "a4");
 
-        const pageWidth  = doc.internal.pageSize.getWidth();
+        const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
         const margin = 15;
         let yPosition = margin;
@@ -2102,7 +2260,7 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
         doc.setFontSize(16);
         doc.setTextColor(255, 255, 255);
         doc.setFont("helvetica", "bold");
-        doc.text("SUIVI DES HEURES DE TRAVAIL", pageWidth / 2, 11, { align: "center" });
+        doc.text(t("pdf.header.main"), pageWidth / 2, 11, { align: "center" });
 
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
@@ -2114,7 +2272,9 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             doc.setFontSize(8.5);
             doc.setTextColor(255, 255, 255);
             doc.setFont("helvetica", "bold");
-            if (author)  { doc.text(author,  pageWidth - margin, 10, { align: "right" }); }
+            if (author) {
+                doc.text(author, pageWidth - margin, 10, { align: "right" });
+            }
             if (company) {
                 doc.setFont("helvetica", "normal");
                 doc.text(company, pageWidth - margin, company && author ? 16 : 10, { align: "right" });
@@ -2124,11 +2284,12 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
         yPosition = 36;
 
         // Ligne période / date de génération
-        const startFormatted = new Date(startDate).toLocaleDateString("fr-FR");
-        const endFormatted   = new Date(endDate).toLocaleDateString("fr-FR");
-        const periodText = `Période : ${startFormatted} – ${endFormatted}`;
+        const pdfLocale = currentLang === "en" ? "en-GB" : "fr-FR";
+        const startFormatted = new Date(startDate).toLocaleDateString(pdfLocale);
+        const endFormatted = new Date(endDate).toLocaleDateString(pdfLocale);
+        const periodText = `${t("pdf.period")} ${startFormatted} – ${endFormatted}`;
         const now = new Date();
-        const genText = `Généré le ${now.toLocaleDateString("fr-FR")} à ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+        const genText = `${t("pdf.generated")} ${now.toLocaleDateString(pdfLocale)} ${t("pdf.generatedAt")} ${now.toLocaleTimeString(pdfLocale, { hour: "2-digit", minute: "2-digit" })}`;
 
         doc.setFontSize(9);
         doc.setTextColor(150, 150, 150);
@@ -2144,7 +2305,7 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             doc.setFontSize(12);
             doc.setTextColor(0, 0, 0);
             doc.setFont("helvetica", "bold");
-            doc.text("Résumé Global", margin, yPosition);
+            doc.text(t("pdf.globalSummary"), margin, yPosition);
             yPosition += 5;
 
             doc.setDrawColor(...T);
@@ -2153,10 +2314,10 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             yPosition += 5;
 
             // Bande horizontale 4 colonnes
-            const gStripW    = pageWidth - margin * 2;
-            const gStripH    = 26;
+            const gStripW = pageWidth - margin * 2;
+            const gStripH = 26;
             const gStripCols = 4;
-            const gColW      = gStripW / gStripCols;
+            const gColW = gStripW / gStripCols;
 
             doc.setFillColor(248, 248, 248);
             doc.setDrawColor(...TB);
@@ -2169,10 +2330,14 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             doc.rect(margin, yPosition + 2, gStripW, 1, "F");
 
             const globalItems = [
-                { label: "Heures totales",           value: `${summary.totalHours.toFixed(1)} h`,    color: T              },
-                { label: "Heures normales",        value: `${summary.normalHours.toFixed(1)} h`,   color: [46, 125, 50]  },
-                { label: "Heures supplémentaires", value: `${summary.overtimeHours.toFixed(1)} h`, color: [200, 100, 0]  },
-                { label: "Jours travaillés",           value: `${summary.daysWorked} j`,                 color: [21, 101, 192] }
+                { label: t("pdf.stat.total"), value: `${summary.totalHours.toFixed(1)} h`, color: T },
+                { label: t("pdf.stat.normal"), value: `${summary.normalHours.toFixed(1)} h`, color: [46, 125, 50] },
+                { label: t("pdf.stat.overtime"), value: `${summary.overtimeHours.toFixed(1)} h`, color: [200, 100, 0] },
+                {
+                    label: t("pdf.stat.days"),
+                    value: `${summary.daysWorked} ${t("pdf.stat.daysUnit")}`,
+                    color: [21, 101, 192]
+                }
             ];
 
             for (let i = 0; i < globalItems.length; i++) {
@@ -2210,7 +2375,9 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
         const createTableData = (mEntries, includeNotesParam) => {
             return mEntries.map((entry) => {
                 const dateStr = new Date(entry.date).toLocaleDateString("fr-FR", {
-                    day: "2-digit", month: "2-digit", year: "numeric"
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric"
                 });
                 let timeInfo, durationInfo;
                 if (entry.type === "leave") {
@@ -2218,67 +2385,97 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
                     durationInfo = "";
                 } else {
                     timeInfo = `${entry.startTime} - ${entry.endTime}`;
-                    if (entry.endDate && entry.endDate !== entry.date) { timeInfo += " (nuit)"; }
+                    if (entry.endDate && entry.endDate !== entry.date) {
+                        timeInfo += " " + t("pdf.night");
+                    }
                     durationInfo = `${calculateHours(entry).toFixed(1)} h`;
                 }
                 const row = [dateStr, timeInfo, durationInfo, getTypeLabel(entry.type)];
-                if (includeNotesParam) { row.push(entry.notes || ""); }
+                if (includeNotesParam) {
+                    row.push(entry.notes || "");
+                }
                 return row;
             });
         };
 
         const didParseCell = (data) => {
             if (data.row.section === "head") {
-                data.cell.styles.halign    = "center";
+                data.cell.styles.halign = "center";
                 data.cell.styles.fontStyle = "bold";
                 data.cell.styles.fillColor = T;
                 data.cell.styles.textColor = 255;
                 return;
             }
 
-            if (data.column.index <= 3) { data.cell.styles.halign = "center"; }
+            if (data.column.index <= 3) {
+                data.cell.styles.halign = "center";
+            }
 
             if (includeNotes && data.column.index === 4) {
                 data.cell.styles.fontStyle = "italic";
-                data.cell.styles.halign    = "left";
+                data.cell.styles.halign = "left";
             }
 
-            // Colorisation des lignes par type
+            // Colorisation des lignes par type — comparaison insensible à la langue via les valeurs traduites
             if (colorizeRows && data.row.raw) {
                 const typeLabel = data.row.raw[3] || "";
                 let rowBg = null;
-                if (typeLabel.includes("Normales"))  { rowBg = typeRowColors.normal; }
-                else if (typeLabel.includes("Suppl.")){ rowBg = typeRowColors.overtime; }
-                else if (typeLabel.includes("Nuit"))  { rowBg = typeRowColors.night; }
-                else if (typeLabel.includes("Week-end")){ rowBg = typeRowColors.weekend; }
-                else if (typeLabel.includes("Congé")) { rowBg = typeRowColors.leave; }
-                if (rowBg) { data.cell.styles.fillColor = rowBg; }
+                if (typeLabel === t("type.normal")) {
+                    rowBg = typeRowColors.normal;
+                } else if (typeLabel === t("type.overtime")) {
+                    rowBg = typeRowColors.overtime;
+                } else if (typeLabel === t("type.night")) {
+                    rowBg = typeRowColors.night;
+                } else if (typeLabel === t("type.weekend")) {
+                    rowBg = typeRowColors.weekend;
+                } else if (typeLabel === t("type.leave")) {
+                    rowBg = typeRowColors.leave;
+                }
+                if (rowBg) {
+                    data.cell.styles.fillColor = rowBg;
+                }
             }
 
             // Couleur texte colonne Type
             if (data.column.index === 3) {
                 const val = data.cell.raw || "";
-                if (val.includes("Normales"))   { data.cell.styles.textColor = typeTextColors.normal; }
-                else if (val.includes("Suppl.")){ data.cell.styles.textColor = typeTextColors.overtime; }
-                else if (val.includes("Nuit"))  { data.cell.styles.textColor = typeTextColors.night; }
-                else if (val.includes("Week-end")){ data.cell.styles.textColor = typeTextColors.weekend; }
-                else if (val.includes("Congé")) { data.cell.styles.textColor = typeTextColors.leave; }
+                if (val === t("type.normal")) {
+                    data.cell.styles.textColor = typeTextColors.normal;
+                } else if (val === t("type.overtime")) {
+                    data.cell.styles.textColor = typeTextColors.overtime;
+                } else if (val === t("type.night")) {
+                    data.cell.styles.textColor = typeTextColors.night;
+                } else if (val === t("type.weekend")) {
+                    data.cell.styles.textColor = typeTextColors.weekend;
+                } else if (val === t("type.leave")) {
+                    data.cell.styles.textColor = typeTextColors.leave;
+                }
                 data.cell.styles.fontStyle = "bold";
             }
         };
 
         const didDrawCell = (data) => {
             const rowData = data.row.raw;
-            const isLeave = rowData && rowData[3] && rowData[3].includes("Congé");
+            const isLeave = rowData && rowData[3] && rowData[3] === t("type.leave");
             if (data.row.section === "body" && isLeave && (data.column.index === 1 || data.column.index === 2)) {
                 const iconSize = data.cell.height * 0.4;
-                const centerX  = data.cell.x + data.cell.width / 2;
-                const centerY  = data.cell.y + data.cell.height / 2;
+                const centerX = data.cell.x + data.cell.width / 2;
+                const centerY = data.cell.y + data.cell.height / 2;
                 doc.setDrawColor(231, 76, 60);
                 doc.setLineWidth(0.8);
                 doc.setLineCap("butt");
-                doc.line(centerX - iconSize / 2, centerY - iconSize / 2, centerX + iconSize / 2, centerY + iconSize / 2);
-                doc.line(centerX + iconSize / 2, centerY - iconSize / 2, centerX - iconSize / 2, centerY + iconSize / 2);
+                doc.line(
+                    centerX - iconSize / 2,
+                    centerY - iconSize / 2,
+                    centerX + iconSize / 2,
+                    centerY + iconSize / 2
+                );
+                doc.line(
+                    centerX + iconSize / 2,
+                    centerY - iconSize / 2,
+                    centerX - iconSize / 2,
+                    centerY + iconSize / 2
+                );
             }
         };
 
@@ -2294,8 +2491,8 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
 
             // Titre du mois — centrage vertical précis (baseline jsPDF)
             const monthFontSize = 11;
-            const monthBlockH   = 12;
-            const monthTextY    = yPosition + monthBlockH / 2 + monthFontSize * 0.352 / 2;
+            const monthBlockH = 12;
+            const monthTextY = yPosition + monthBlockH / 2 + (monthFontSize * 0.352) / 2;
 
             doc.setFillColor(...TL);
             doc.setDrawColor(...TB);
@@ -2310,7 +2507,15 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
 
             doc.autoTable({
                 startY: yPosition,
-                head: [["Date", "Heures", "Durée", "Type", ...(includeNotes ? ["Notes"] : [])]],
+                head: [
+                    [
+                        t("pdf.col.date"),
+                        t("pdf.col.hours"),
+                        t("pdf.col.duration"),
+                        t("pdf.col.type"),
+                        ...(includeNotes ? [t("pdf.col.notes")] : [])
+                    ]
+                ],
                 body: createTableData(monthEntries, includeNotes),
                 margin: { left: margin, right: margin },
                 theme: "plain",
@@ -2335,11 +2540,12 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             yPosition = doc.lastAutoTable.finalY + 8;
 
             // ==================== RÉCAPITULATIF MENSUEL — BANDE HORIZONTALE ====================
+            if (includeSummary) {
             const monthSummary = calculatePeriodSummary(monthEntries);
-            const stripH    = 22;
-            const stripW    = pageWidth - margin * 2;
+            const stripH = 22;
+            const stripW = pageWidth - margin * 2;
             const stripCols = 4;
-            const colW      = stripW / stripCols;
+            const colW = stripW / stripCols;
 
             if (yPosition + stripH + 10 > pageHeight - margin) {
                 doc.addPage();
@@ -2350,7 +2556,7 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             doc.setFontSize(8);
             doc.setTextColor(140, 140, 140);
             doc.setFont("helvetica", "bolditalic");
-            doc.text(`Récapitulatif — ${monthName} ${year}`, margin, yPosition + 3);
+            doc.text(`${t("pdf.recap")} — ${monthName} ${year}`, margin, yPosition + 3);
             yPosition += 6;
 
             // Fond de la bande
@@ -2366,16 +2572,28 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             doc.rect(margin, yPosition + 1.5, stripW, 1, "F");
 
             const monthStripItems = [
-                { label: "Heures totales",         value: `${monthSummary.totalHours.toFixed(1)} h`,    color: T              },
-                { label: "Heures normales",      value: `${monthSummary.normalHours.toFixed(1)} h`,   color: [46, 125, 50]  },
-                { label: "Heures supplémentaires", value: `${monthSummary.overtimeHours.toFixed(1)} h`, color: [200, 100, 0]  },
-                { label: "Jours travaillés",         value: `${monthSummary.daysWorked} j`,                 color: [21, 101, 192] }
+                { label: t("pdf.stat.total"), value: `${monthSummary.totalHours.toFixed(1)} h`, color: T },
+                {
+                    label: t("pdf.stat.normal"),
+                    value: `${monthSummary.normalHours.toFixed(1)} h`,
+                    color: [46, 125, 50]
+                },
+                {
+                    label: t("pdf.stat.overtime"),
+                    value: `${monthSummary.overtimeHours.toFixed(1)} h`,
+                    color: [200, 100, 0]
+                },
+                {
+                    label: t("pdf.stat.days"),
+                    value: `${monthSummary.daysWorked} ${t("pdf.stat.daysUnit")}`,
+                    color: [21, 101, 192]
+                }
             ];
 
             for (let i = 0; i < monthStripItems.length; i++) {
-                const item  = monthStripItems[i];
-                const colX  = margin + i * colW;
-                const midX  = colX + colW / 2;
+                const item = monthStripItems[i];
+                const colX = margin + i * colW;
+                const midX = colX + colW / 2;
 
                 // Séparateur vertical (sauf avant la 1ère colonne)
                 if (i > 0) {
@@ -2398,6 +2616,9 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
             }
 
             yPosition += stripH + 14;
+            } else {
+                yPosition += 6;
+            }
         }
 
         // ==================== PIED DE PAGE ====================
@@ -2416,22 +2637,24 @@ function createPDF(entries, startDate, endDate, includeSummary, includeNotes, ti
 
             // Nom/société à gauche si renseigné
             const footerLeft = author || company || "";
-            if (footerLeft) { doc.text(footerLeft, margin, pageHeight - 9); }
+            if (footerLeft) {
+                doc.text(footerLeft, margin, pageHeight - 9);
+            }
 
-            doc.text(`Page ${i} / ${totalPages}`, pageWidth / 2, pageHeight - 9, { align: "center" });
+            doc.text(`${t("pdf.page")} ${i} / ${totalPages}`, pageWidth / 2, pageHeight - 9, { align: "center" });
             doc.text(title, pageWidth - margin, pageHeight - 9, { align: "right" });
         }
 
         // ==================== SAUVEGARDE ====================
         const startClean = startDate.replace(/-/g, "");
-        const endClean   = endDate.replace(/-/g, "");
-        const fileName   = `heures_travail_${startClean}_${endClean}.pdf`;
+        const endClean = endDate.replace(/-/g, "");
+        const fileName = `${t("pdf.filename")}_${startClean}_${endClean}.pdf`;
         doc.save(fileName);
 
-        showSystemMessage("PDF généré avec succès !");
+        showSystemMessage(t("msg.pdfOk"));
     } catch (error) {
         console.error("Erreur détaillée:", error);
-        showSystemMessage("Erreur lors de la génération du PDF", true);
+        showSystemMessage(t("msg.pdfError"), true);
     }
 }
 
@@ -2460,21 +2683,8 @@ function groupEntriesByMonth(entries) {
 
 // Fonction pour obtenir le nom du mois
 function getMonthName(monthNumber) {
-    const monthNames = [
-        "Janvier",
-        "Février",
-        "Mars",
-        "Avril",
-        "Mai",
-        "Juin",
-        "Juillet",
-        "Août",
-        "Septembre",
-        "Octobre",
-        "Novembre",
-        "Décembre"
-    ];
-    return monthNames[monthNumber - 1];
+    const names = t("calendar.months");
+    return Array.isArray(names) ? names[monthNumber - 1] : monthNumber;
 }
 
 // Fonction pour calculer le résumé d'une période (inchangée)
@@ -2509,9 +2719,15 @@ function calculatePeriodSummary(entries) {
     };
 }
 
-// Démarrer l'application
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initApp);
-} else {
-    initApp();
+// Démarrer l'application — charger lang.json avant tout
+function startApp() {
+    loadLanguages().then(() => {
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initApp);
+        } else {
+            initApp();
+        }
+    });
 }
+
+startApp();
