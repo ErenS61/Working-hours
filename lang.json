@@ -178,7 +178,12 @@
         "pdf.docTitle": "Titre du document :",
         "modal.edit.title": "✏️ Modifier l'Entrée",
         "modal.changelog.title": "📋 Notes de Version",
-        "modal.deleteAll.text": "Êtes-vous sûr de vouloir supprimer <strong>TOUTES</strong> les entrées de tous les mois ? Cette action est irréversible !"
+        "modal.deleteAll.text": "Êtes-vous sûr de vouloir supprimer <strong>TOUTES</strong> les entrées de tous les mois ? Cette action est irréversible !",
+        "menu.credits": "Crédits",
+        "modal.credits.title": "✨ Crédits",
+        "credits.app": "Application",
+        "credits.version": "Version",
+        "credits.libs": "Librairies"
     },
     "en": {
         "app.title": "⏰ Work Hours Tracker",
@@ -359,6 +364,11 @@
         "pdf.docTitle": "Document title:",
         "modal.edit.title": "✏️ Edit Entry",
         "modal.changelog.title": "📋 Release Notes",
-        "modal.deleteAll.text": "Are you sure you want to delete <strong>ALL</strong> entries from all months? This action is irreversible!"
+        "modal.deleteAll.text": "Are you sure you want to delete <strong>ALL</strong> entries from all months? This action is irreversible!",
+        "menu.credits": "Credits",
+        "modal.credits.title": "✨ Credits",
+        "credits.app": "Application",
+        "credits.version": "Version",
+        "credits.libs": "Libraries"
     }
 }

@@ -10,14 +10,26 @@ let entryToEdit = null;
 let verificationCode = "";
 let deleteAllRequested = false;
 
+function parseLocalDate(dateStr) {
+    if (!dateStr) {
+        return new Date();
+    }
+    const parts = dateStr.split("-");
+    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+}
+
 // ==================== INTERNATIONALISATION ====================
 
 let i18n = {};
 let currentLang = localStorage.getItem("appLang") || "fr";
 
 function t(key) {
-    if (i18n[currentLang] && i18n[currentLang][key] !== undefined) { return i18n[currentLang][key]; }
-    if (i18n.fr && i18n.fr[key] !== undefined) { return i18n.fr[key]; }
+    if (i18n[currentLang] && i18n[currentLang][key] !== undefined) {
+        return i18n[currentLang][key];
+    }
+    if (i18n.fr && i18n.fr[key] !== undefined) {
+        return i18n.fr[key];
+    }
     return key;
 }
 
@@ -69,7 +81,9 @@ function applyI18n() {
     if (Array.isArray(days)) {
         document.querySelectorAll("[data-i18n-day]").forEach((el) => {
             const idx = parseInt(el.getAttribute("data-i18n-day"), 10);
-            if (days[idx] !== undefined) { el.textContent = days[idx]; }
+            if (days[idx] !== undefined) {
+                el.textContent = days[idx];
+            }
         });
     }
 }
@@ -180,35 +194,57 @@ function renderChangelog(versions) {
         .join("");
 }
 
+// ==================== MODAL CRÉDITS ====================
+
+function showCreditsModal() {
+    document.getElementById("creditsModal").style.display = "flex";
+}
+
+function closeCreditsModal() {
+    document.getElementById("creditsModal").style.display = "none";
+}
+
 // ==================== PASTILLE CHANGELOG ====================
 
 function initChangelogBadge() {
     fetch("changelog.json?v=" + new Date().getTime())
         .then((r) => r.json())
         .then((versions) => {
-            if (!versions || versions.length === 0) { return; }
+            if (!versions || versions.length === 0) {
+                return;
+            }
             const latestVersion = versions[0].version;
-            const seenVersion   = localStorage.getItem("changelogSeenVersion");
+            const seenVersion = localStorage.getItem("changelogSeenVersion");
 
             if (seenVersion !== latestVersion) {
                 showChangelogBadge();
             }
         })
-        .catch(() => { /* silencieux */ });
+        .catch(() => {
+            /* silencieux */
+        });
 }
 
 function showChangelogBadge() {
-    const badge     = document.getElementById("hamburgerBadge");
+    const badge = document.getElementById("hamburgerBadge");
     const itemBadge = document.getElementById("changelogItemBadge");
-    if (badge)     { badge.style.display     = "inline-block"; }
-    if (itemBadge) { itemBadge.style.display = "inline-block"; }
+    if (badge) {
+        badge.style.display = "inline-block";
+    }
+    if (itemBadge) {
+        itemBadge.style.display = "inline-block";
+    }
 }
 
 function clearChangelogBadge() {
-    const badge     = document.getElementById("hamburgerBadge");
+    const badge = document.getElementById("hamburgerBadge");
     const itemBadge = document.getElementById("changelogItemBadge");
-    if (badge)     { badge.style.display     = "none"; }
-    if (itemBadge) { itemBadge.style.display = "none"; }
+    if (badge) {
+        badge.style.display = "none";
+    }
+    if (itemBadge) {
+        itemBadge.style.display = "none";
+    }
 
     // Mémoriser la version vue
     fetch("changelog.json?v=" + new Date().getTime())
@@ -218,7 +254,9 @@ function clearChangelogBadge() {
                 localStorage.setItem("changelogSeenVersion", versions[0].version);
             }
         })
-        .catch(() => { /* silencieux */ });
+        .catch(() => {
+            /* silencieux */
+        });
 }
 
 // Initialisation de l'application
@@ -404,7 +442,7 @@ function isSameDay(date1, date2) {
 // Obtenir les entrées pour une date spécifique (pour le calendrier)
 function getEntriesForDate(date) {
     return workEntries.filter((entry) => {
-        const entryDate = new Date(entry.date);
+        const entryDate = parseLocalDate(entry.date);
         // Pour le calendrier : afficher uniquement sur la date de début
         return isSameDay(entryDate, date);
     });
@@ -493,15 +531,11 @@ function calculateHours(entry) {
 
 // Mettre à jour le résumé
 function updateSummary() {
+    // On filtre par date de DÉBUT uniquement pour éviter de compter les shifts de nuit
+    // qui finissent le 1er du mois suivant dans le mauvais mois.
     const monthEntries = workEntries.filter((entry) => {
-        const entryDate = new Date(entry.date);
-        const entryEndDate = entry.endDate ? new Date(entry.endDate) : entryDate;
-
-        // Vérifier si l'entrée est dans le mois courant (début ou fin)
-        return (
-            (entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear) ||
-            (entry.endDate && entryEndDate.getMonth() === currentMonth && entryEndDate.getFullYear() === currentYear)
-        );
+        const entryDate = parseLocalDate(entry.date);
+        return entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear;
     });
 
     let normalHours = 0;
@@ -532,17 +566,10 @@ function displayMonthEntries() {
 
     const monthEntries = workEntries
         .filter((entry) => {
-            const entryDate = new Date(entry.date);
-            const entryEndDate = entry.endDate ? new Date(entry.endDate) : entryDate;
-
-            return (
-                (entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear) ||
-                (entry.endDate &&
-                    entryEndDate.getMonth() === currentMonth &&
-                    entryEndDate.getFullYear() === currentYear)
-            );
+            const entryDate = parseLocalDate(entry.date);
+            return entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear;
         })
-        .sort((a, b) => new Date(b.date) - new Date(a.date));
+        .sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
 
     if (monthEntries.length === 0) {
         entriesList.innerHTML = `<div class="no-entries">${t("entries.none")}</div>`;
@@ -1390,7 +1417,9 @@ function saveEditedEntry() {
 // Afficher les entrées d'un jour spécifique
 function showDayEntries(day, entries) {
     if (entries.length === 0) {
-        let message = `${t("entries.day.none")} ${day}/${currentMonth + 1}/${currentYear}`;
+        const mm = String(currentMonth + 1).padStart(2, "0");
+        const dd = String(day).padStart(2, "0");
+        let message = `${t("entries.day.none")} ${dd}/${mm}/${currentYear}`;
         showSystemMessage(message, true);
         return;
     }
@@ -1690,19 +1719,14 @@ function showStatsModal() {
     const modal = document.getElementById("statsModal");
 
     // Calculer les statistiques
+    // Pour les statistiques, on ne garde que les entrées dont le DÉBUT est dans ce mois.
+    // Un shift de nuit 31/03→01/04 appartient à mars, pas à avril.
     const monthEntries = workEntries.filter((entry) => {
-        const entryDate = new Date(entry.date);
-        const entryEndDate = entry.endDate ? new Date(entry.endDate) : entryDate;
-
-        return (
-            (entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear) ||
-            (entry.endDate && entryEndDate.getMonth() === currentMonth && entryEndDate.getFullYear() === currentYear)
-        );
+        const entryDate = parseLocalDate(entry.date);
+        return entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear;
     });
 
     // Compter les jours travaillés (exclure les congés)
-    // On n'ajoute que entry.date (jour de début) : pour un shift de nuit étalé sur 2 jours,
-    // endDate est simplement la date de fin du shift, pas un jour travaillé supplémentaire.
     const daysWorkedSet = new Set();
     monthEntries.forEach((entry) => {
         if (entry.type !== "leave") {
@@ -1781,15 +1805,15 @@ function closeAllModals() {
 // Générer le graphique des heures
 function generateChart() {
     const ctx = document.getElementById("hoursChart").getContext("2d");
- 
+
     // Supprimer l'ancien graphique s'il existe
     if (window.hoursChartInstance) {
         window.hoursChartInstance.destroy();
     }
- 
+
     // Calculer les heures par semaine (exclure les congés)
     const weeklyHours = calculateWeeklyHours();
- 
+
     // Si pas de données, afficher un message
     if (weeklyHours.labels.length === 0 || weeklyHours.hours.every((h) => h === 0)) {
         // Créer un graphique vide avec un message
@@ -1846,7 +1870,7 @@ function generateChart() {
                             const ctx = chart.ctx;
                             const width = chart.width;
                             const height = chart.height;
- 
+
                             chart.clear();
                             ctx.save();
                             ctx.textAlign = "center";
@@ -1862,7 +1886,7 @@ function generateChart() {
         });
         return;
     }
- 
+
     // Sinon, créer le graphique normal
     window.hoursChartInstance = new Chart(ctx, {
         type: "bar",
@@ -2205,22 +2229,22 @@ function createPDF(
 
     // ==================== PALETTES DE THÈMES ====================
     const themes = {
-        teal:   { primary: [0, 191, 165],    light: [220, 252, 248], border: [140, 230, 220] },
-        blue:   { primary: [30, 136, 229],   light: [220, 240, 255], border: [140, 200, 245] },
-        purple: { primary: [142, 36, 170],   light: [240, 220, 252], border: [200, 155, 230] },
-        red:    { primary: [229, 57, 53],    light: [255, 225, 225], border: [240, 165, 163] },
-        green:  { primary: [67, 160, 71],    light: [220, 248, 222], border: [150, 220, 155] },
-        orange: { primary: [251, 140, 0],    light: [255, 243, 220], border: [245, 200, 140] },
-        pink:   { primary: [233, 30, 140],   light: [255, 220, 242], border: [240, 155, 205] },
-        indigo: { primary: [57, 73, 171],    light: [225, 228, 252], border: [155, 162, 235] },
-        cyan:   { primary: [0, 172, 193],    light: [218, 248, 252], border: [140, 225, 235] },
-        lime:   { primary: [192, 202, 51],   light: [245, 248, 210], border: [215, 225, 150] },
-        amber:  { primary: [255, 179, 0],    light: [255, 248, 218], border: [245, 215, 140] },
-        coral:  { primary: [255, 82, 82],    light: [255, 228, 228], border: [245, 170, 170] },
-        mint:   { primary: [0, 230, 118],    light: [215, 255, 238], border: [140, 240, 195] },
-        violet: { primary: [124, 77, 255],   light: [235, 225, 255], border: [185, 165, 250] },
-        rose:   { primary: [245, 0, 87],     light: [255, 218, 232], border: [245, 150, 190] },
-        sky:    { primary: [41, 182, 246],   light: [218, 245, 255], border: [145, 215, 250] }
+        teal: { primary: [0, 191, 165], light: [220, 252, 248], border: [140, 230, 220] },
+        blue: { primary: [30, 136, 229], light: [220, 240, 255], border: [140, 200, 245] },
+        purple: { primary: [142, 36, 170], light: [240, 220, 252], border: [200, 155, 230] },
+        red: { primary: [229, 57, 53], light: [255, 225, 225], border: [240, 165, 163] },
+        green: { primary: [67, 160, 71], light: [220, 248, 222], border: [150, 220, 155] },
+        orange: { primary: [251, 140, 0], light: [255, 243, 220], border: [245, 200, 140] },
+        pink: { primary: [233, 30, 140], light: [255, 220, 242], border: [240, 155, 205] },
+        indigo: { primary: [57, 73, 171], light: [225, 228, 252], border: [155, 162, 235] },
+        cyan: { primary: [0, 172, 193], light: [218, 248, 252], border: [140, 225, 235] },
+        lime: { primary: [192, 202, 51], light: [245, 248, 210], border: [215, 225, 150] },
+        amber: { primary: [255, 179, 0], light: [255, 248, 218], border: [245, 215, 140] },
+        coral: { primary: [255, 82, 82], light: [255, 228, 228], border: [245, 170, 170] },
+        mint: { primary: [0, 230, 118], light: [215, 255, 238], border: [140, 240, 195] },
+        violet: { primary: [124, 77, 255], light: [235, 225, 255], border: [185, 165, 250] },
+        rose: { primary: [245, 0, 87], light: [255, 218, 232], border: [245, 150, 190] },
+        sky: { primary: [41, 182, 246], light: [218, 245, 255], border: [145, 215, 250] }
     };
     const theme = themes[themeName] || themes.teal;
     const T = theme.primary; // couleur principale [r,g,b]
@@ -2247,6 +2271,18 @@ function createPDF(
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF("p", "mm", "a4");
 
+        // ==================== POLICE GOTHAM ====================
+        // Si gotham-fonts.js est chargé, on enregistre les 3 variantes dans jsPDF
+        const pdfFont = (typeof window.GothamFonts !== "undefined") ? "Gotham" : "helvetica";
+        if (typeof window.GothamFonts !== "undefined") {
+            doc.addFileToVFS("Gotham-Book.ttf",       window.GothamFonts.book);
+            doc.addFileToVFS("Gotham-Bold.ttf",       window.GothamFonts.bold);
+            doc.addFileToVFS("Gotham-BoldItalic.ttf", window.GothamFonts.bolditalic);
+            doc.addFont("Gotham-Book.ttf",       "Gotham", "normal");
+            doc.addFont("Gotham-Bold.ttf",       "Gotham", "bold");
+            doc.addFont("Gotham-BoldItalic.ttf", "Gotham", "bolditalic");
+        }
+
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
         const margin = 15;
@@ -2259,11 +2295,11 @@ function createPDF(
 
         doc.setFontSize(16);
         doc.setTextColor(255, 255, 255);
-        doc.setFont("helvetica", "bold");
+        doc.setFont(pdfFont, "bold");
         doc.text(t("pdf.header.main"), pageWidth / 2, 11, { align: "center" });
 
         doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
+        doc.setFont(pdfFont, "normal");
         doc.setTextColor(255, 255, 255);
         doc.text(title, pageWidth / 2, 19, { align: "center" });
 
@@ -2271,12 +2307,12 @@ function createPDF(
         if (author || company) {
             doc.setFontSize(8.5);
             doc.setTextColor(255, 255, 255);
-            doc.setFont("helvetica", "bold");
+            doc.setFont(pdfFont, "bold");
             if (author) {
                 doc.text(author, pageWidth - margin, 10, { align: "right" });
             }
             if (company) {
-                doc.setFont("helvetica", "normal");
+                doc.setFont(pdfFont, "normal");
                 doc.text(company, pageWidth - margin, company && author ? 16 : 10, { align: "right" });
             }
         }
@@ -2293,7 +2329,7 @@ function createPDF(
 
         doc.setFontSize(9);
         doc.setTextColor(150, 150, 150);
-        doc.setFont("helvetica", "normal");
+        doc.setFont(pdfFont, "normal");
         doc.text(periodText, margin, yPosition);
         doc.text(genText, pageWidth - margin, yPosition, { align: "right" });
         yPosition += 12;
@@ -2304,7 +2340,7 @@ function createPDF(
 
             doc.setFontSize(12);
             doc.setTextColor(0, 0, 0);
-            doc.setFont("helvetica", "bold");
+            doc.setFont(pdfFont, "bold");
             doc.text(t("pdf.globalSummary"), margin, yPosition);
             yPosition += 5;
 
@@ -2351,12 +2387,12 @@ function createPDF(
                 }
 
                 doc.setFontSize(16);
-                doc.setFont("helvetica", "bold");
+                doc.setFont(pdfFont, "bold");
                 doc.setTextColor(...item.color);
                 doc.text(item.value, midX, yPosition + 16, { align: "center" });
 
                 doc.setFontSize(7.5);
-                doc.setFont("helvetica", "normal");
+                doc.setFont(pdfFont, "normal");
                 doc.setTextColor(140, 140, 140);
                 doc.text(item.label, midX, yPosition + 23, { align: "center" });
             }
@@ -2501,7 +2537,7 @@ function createPDF(
 
             doc.setFontSize(monthFontSize);
             doc.setTextColor(...T);
-            doc.setFont("helvetica", "bold");
+            doc.setFont(pdfFont, "bold");
             doc.text(`${monthName} ${year}`, margin + 4, monthTextY);
             yPosition += monthBlockH + 2;
 
@@ -2520,11 +2556,12 @@ function createPDF(
                 margin: { left: margin, right: margin },
                 theme: "plain",
                 styles: {
-                    fontSize: 9,
+                    fontSize: 8.25,
                     cellPadding: 3,
                     valign: "middle",
                     lineColor: [220, 220, 220],
-                    lineWidth: 0.1
+                    lineWidth: 0.1,
+                    font: pdfFont
                 },
                 columnStyles: {
                     0: { cellWidth: 30 },
@@ -2541,81 +2578,81 @@ function createPDF(
 
             // ==================== RÉCAPITULATIF MENSUEL — BANDE HORIZONTALE ====================
             if (includeSummary) {
-            const monthSummary = calculatePeriodSummary(monthEntries);
-            const stripH = 22;
-            const stripW = pageWidth - margin * 2;
-            const stripCols = 4;
-            const colW = stripW / stripCols;
+                const monthSummary = calculatePeriodSummary(monthEntries);
+                const stripH = 22;
+                const stripW = pageWidth - margin * 2;
+                const stripCols = 4;
+                const colW = stripW / stripCols;
 
-            if (yPosition + stripH + 10 > pageHeight - margin) {
-                doc.addPage();
-                yPosition = margin;
-            }
-
-            // Titre récap
-            doc.setFontSize(8);
-            doc.setTextColor(140, 140, 140);
-            doc.setFont("helvetica", "bolditalic");
-            doc.text(`${t("pdf.recap")} — ${monthName} ${year}`, margin, yPosition + 3);
-            yPosition += 6;
-
-            // Fond de la bande
-            doc.setFillColor(248, 248, 248);
-            doc.setDrawColor(...TB);
-            doc.setLineWidth(0.3);
-            doc.roundedRect(margin, yPosition, stripW, stripH, 2, 2, "FD");
-
-            // Barre colorée en haut de la bande (accent)
-            doc.setFillColor(...T);
-            doc.roundedRect(margin, yPosition, stripW, 2.5, 1, 1, "F");
-            // Recouvrir le bas des coins arrondis du trait supérieur pour qu'il soit droit en bas
-            doc.rect(margin, yPosition + 1.5, stripW, 1, "F");
-
-            const monthStripItems = [
-                { label: t("pdf.stat.total"), value: `${monthSummary.totalHours.toFixed(1)} h`, color: T },
-                {
-                    label: t("pdf.stat.normal"),
-                    value: `${monthSummary.normalHours.toFixed(1)} h`,
-                    color: [46, 125, 50]
-                },
-                {
-                    label: t("pdf.stat.overtime"),
-                    value: `${monthSummary.overtimeHours.toFixed(1)} h`,
-                    color: [200, 100, 0]
-                },
-                {
-                    label: t("pdf.stat.days"),
-                    value: `${monthSummary.daysWorked} ${t("pdf.stat.daysUnit")}`,
-                    color: [21, 101, 192]
-                }
-            ];
-
-            for (let i = 0; i < monthStripItems.length; i++) {
-                const item = monthStripItems[i];
-                const colX = margin + i * colW;
-                const midX = colX + colW / 2;
-
-                // Séparateur vertical (sauf avant la 1ère colonne)
-                if (i > 0) {
-                    doc.setDrawColor(215, 215, 215);
-                    doc.setLineWidth(0.3);
-                    doc.line(colX, yPosition + 4, colX, yPosition + stripH - 2);
+                if (yPosition + stripH + 10 > pageHeight - margin) {
+                    doc.addPage();
+                    yPosition = margin;
                 }
 
-                // Valeur (grande, colorée, centrée)
-                doc.setFontSize(16);
-                doc.setFont("helvetica", "bold");
-                doc.setTextColor(...item.color);
-                doc.text(item.value, midX, yPosition + 13, { align: "center" });
-
-                // Label (petit, gris, centré en dessous)
-                doc.setFontSize(7);
-                doc.setFont("helvetica", "normal");
+                // Titre récap
+                doc.setFontSize(8);
                 doc.setTextColor(140, 140, 140);
-                doc.text(item.label, midX, yPosition + 19, { align: "center" });
-            }
+                doc.setFont(pdfFont, "bolditalic");
+                doc.text(`${t("pdf.recap")} — ${monthName} ${year}`, margin, yPosition + 3);
+                yPosition += 6;
 
-            yPosition += stripH + 14;
+                // Fond de la bande
+                doc.setFillColor(248, 248, 248);
+                doc.setDrawColor(...TB);
+                doc.setLineWidth(0.3);
+                doc.roundedRect(margin, yPosition, stripW, stripH, 2, 2, "FD");
+
+                // Barre colorée en haut de la bande (accent)
+                doc.setFillColor(...T);
+                doc.roundedRect(margin, yPosition, stripW, 2.5, 1, 1, "F");
+                // Recouvrir le bas des coins arrondis du trait supérieur pour qu'il soit droit en bas
+                doc.rect(margin, yPosition + 1.5, stripW, 1, "F");
+
+                const monthStripItems = [
+                    { label: t("pdf.stat.total"), value: `${monthSummary.totalHours.toFixed(1)} h`, color: T },
+                    {
+                        label: t("pdf.stat.normal"),
+                        value: `${monthSummary.normalHours.toFixed(1)} h`,
+                        color: [46, 125, 50]
+                    },
+                    {
+                        label: t("pdf.stat.overtime"),
+                        value: `${monthSummary.overtimeHours.toFixed(1)} h`,
+                        color: [200, 100, 0]
+                    },
+                    {
+                        label: t("pdf.stat.days"),
+                        value: `${monthSummary.daysWorked} ${t("pdf.stat.daysUnit")}`,
+                        color: [21, 101, 192]
+                    }
+                ];
+
+                for (let i = 0; i < monthStripItems.length; i++) {
+                    const item = monthStripItems[i];
+                    const colX = margin + i * colW;
+                    const midX = colX + colW / 2;
+
+                    // Séparateur vertical (sauf avant la 1ère colonne)
+                    if (i > 0) {
+                        doc.setDrawColor(215, 215, 215);
+                        doc.setLineWidth(0.3);
+                        doc.line(colX, yPosition + 4, colX, yPosition + stripH - 2);
+                    }
+
+                    // Valeur (grande, colorée, centrée)
+                    doc.setFontSize(16);
+                    doc.setFont(pdfFont, "bold");
+                    doc.setTextColor(...item.color);
+                    doc.text(item.value, midX, yPosition + 13, { align: "center" });
+
+                    // Label (petit, gris, centré en dessous)
+                    doc.setFontSize(7);
+                    doc.setFont(pdfFont, "normal");
+                    doc.setTextColor(140, 140, 140);
+                    doc.text(item.label, midX, yPosition + 19, { align: "center" });
+                }
+
+                yPosition += stripH + 14;
             } else {
                 yPosition += 6;
             }
@@ -2633,7 +2670,7 @@ function createPDF(
 
             doc.setFontSize(7.5);
             doc.setTextColor(150, 150, 150);
-            doc.setFont("helvetica", "normal");
+            doc.setFont(pdfFont, "normal");
 
             // Nom/société à gauche si renseigné
             const footerLeft = author || company || "";

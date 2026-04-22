@@ -1,5 +1,17 @@
 [
     {
+        "version": "1.5.0",
+        "date": "2025-04-22",
+        "label": "Nouveauté",
+        "labelType": "new",
+        "changes": [
+            { "type": "improvement", "text": "Modification de la police de caractère du PDF en Gotham" },
+            { "type": "new", "text": "Ajout de la section Crédit dans le menu Hamburger" },
+            { "type": "fix", "text": "Résolution du problème d'affichage de la date dans les messages système" }
+        ]
+    },
+    
+    {
         "version": "1.4.0",
         "date": "2025-03-30",
         "label": "Nouveauté",
