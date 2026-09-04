@@ -17,9 +17,23 @@
     <!-------------------------------- Font Awesome icons ----------------------------------->
     <!--------------------------------------------------------------------------------------->
 
-    <link
+    <!-- CDN officiel -->
+
+    <!-- <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/rizmyabdulla/fontawesome-pro@main/releases/v7.2.0/css/fontawesome.css" />
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.min.css" /> -->
+
+    <!-- CDN GitHub WebAsset version 7.2.0 -->
+
+    <!-- <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/WebAsset/FontAwesome@pro/css/all.min.css" /> -->
+
+    <!-- CDN GitHub crc137 version 7.0.0 -->
+
+    <link rel="stylesheet" href="https://raw.coonlink.com/cloud/fontawesome/v7.0.0-rc.1/all.css" />
+
+    <!-- Version obsolète -->
 
     <link
       rel="stylesheet"
@@ -194,7 +208,7 @@
       </button>
 
       <button class="import-button" onclick="showImportModal()" id="importButton">
-        <i class="fa-solid fa-upload"></i>
+        <i class="fa-solid fa-file-import"></i>
       </button>
 
       <button class="pdf-button" onclick="showPDFModal()" id="pdfButton" title="Exporter en PDF">
@@ -253,6 +267,22 @@
           <div class="form-group">
             <label for="endTime" data-i18n="label.endTime">Heure de fin :</label>
             <input type="time" id="endTime" class="form-input" />
+          </div>
+
+          <div class="form-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="hasBreak" onchange="toggleBreak()" />
+              <label for="hasBreak" data-i18n="label.hasBreak">Temps de pause</label>
+            </div>
+          </div>
+
+          <div class="form-group break-time-group" id="breakGroup" style="display: none">
+            <label data-i18n="label.breakTime">Pause de</label>
+            <div class="break-time-inputs">
+              <input type="time" id="breakStart" class="form-input" placeholder="Début pause" />
+              <span class="break-separator" data-i18n="label.breakTo">à</span>
+              <input type="time" id="breakEnd" class="form-input" placeholder="Fin pause" />
+            </div>
           </div>
 
           <div class="form-group">
@@ -555,6 +585,22 @@
         </div>
 
         <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="editHasBreak" onchange="toggleEditBreak()" />
+            <label for="editHasBreak" data-i18n="label.hasBreak">Temps de pause</label>
+          </div>
+        </div>
+
+        <div class="form-group break-time-group" id="editBreakGroup" style="display: none">
+          <label data-i18n="label.breakTime">Pause de</label>
+          <div class="break-time-inputs">
+            <input type="time" id="editBreakStart" class="form-input" />
+            <span class="break-separator" data-i18n="label.breakTo">à</span>
+            <input type="time" id="editBreakEnd" class="form-input" />
+          </div>
+        </div>
+
+        <div class="form-group">
           <label for="editEntryType" data-i18n="label.type">Type d'heures :</label>
           <select id="editEntryType" class="form-input" onchange="handleEditEntryTypeChange()">
             <option value="normal" data-i18n="opt.normal">Heures normales</option>
@@ -602,7 +648,7 @@
           </div>
         </div>
         <div class="form-actions" style="margin-top: 1.2rem">
-          <button class="btn-cancel" onclick="closeCreditsModal()" style="width:100%" data-i18n="btn.ok">OK</button>
+          <button class="btn-cancel" onclick="closeCreditsModal()" style="width: 100%" data-i18n="btn.ok">OK</button>
         </div>
       </div>
     </div>
@@ -626,7 +672,9 @@
       (function () {
         var s = document.createElement("script");
         s.src = "./fonts/gotham-fonts.js";
-        s.onerror = function () { /* absent → le PDF utilisera Helvetica par défaut */ };
+        s.onerror = function () {
+          /* absent → le PDF utilisera Helvetica par défaut */
+        };
         document.head.appendChild(s);
       })();
     </script>

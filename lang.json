@@ -183,7 +183,11 @@
         "modal.credits.title": "✨ Crédits",
         "credits.app": "Application",
         "credits.version": "Version",
-        "credits.libs": "Librairies"
+        "credits.libs": "Librairies",
+        "label.hasBreak": "Temps de pause",
+        "label.breakTime": "Pause de",
+        "label.breakTo": "à",
+        "pdf.col.break": "Pause"
     },
     "en": {
         "app.title": "⏰ Work Hours Tracker",
@@ -369,6 +373,10 @@
         "modal.credits.title": "✨ Credits",
         "credits.app": "Application",
         "credits.version": "Version",
-        "credits.libs": "Libraries"
+        "credits.libs": "Libraries",
+        "label.hasBreak": "Break time",
+        "label.breakTime": "Break from",
+        "label.breakTo": "to",
+        "pdf.col.break": "Break"
     }
 }

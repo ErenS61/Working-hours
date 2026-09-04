@@ -1250,6 +1250,49 @@ input[type="checkbox"]:disabled + label {
     text-align: right;
 }
 
+
+/* ==================== CHAMPS PAUSE ==================== */
+.break-time-group {
+    background: #1e1e1e;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    margin-top: -0.4rem;
+}
+
+.break-time-inputs {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.4rem;
+}
+
+.break-time-inputs .form-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.break-separator {
+    color: #aaa;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+/* Pause dans multi-entrées */
+.multi-row-break-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    grid-column: 1 / -1;
+    margin-top: 0.2rem;
+    color: #bbb;
+    font-size: 0.82rem;
+}
+
+.multi-row-break-group {
+    grid-column: 1 / -1;
+}
+
 /* ==================== PASTILLE CHANGELOG ==================== */
 @keyframes badgePulse {
     0% {

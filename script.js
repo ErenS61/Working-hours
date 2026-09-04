@@ -526,7 +526,27 @@ function calculateHours(entry) {
         hours = Math.max(0, endTotal - startTotal);
     }
 
+    // Soustraire la durée de pause si définie
+    if (entry.breakStart && entry.breakEnd) {
+        const bStartParts = entry.breakStart.split(":");
+        const bEndParts   = entry.breakEnd.split(":");
+        const bStart = parseInt(bStartParts[0]) + parseInt(bStartParts[1]) / 60;
+        const bEnd   = parseInt(bEndParts[0])   + parseInt(bEndParts[1])   / 60;
+        const breakDuration = Math.max(0, bEnd - bStart);
+        hours = Math.max(0, hours - breakDuration);
+    }
+
     return hours;
+}
+
+// Retourne la durée de pause en minutes (0 si pas de pause)
+function getBreakMinutes(entry) {
+    if (!entry.breakStart || !entry.breakEnd) { return 0; }
+    const bStartParts = entry.breakStart.split(":");
+    const bEndParts   = entry.breakEnd.split(":");
+    const bStart = parseInt(bStartParts[0]) * 60 + parseInt(bStartParts[1]);
+    const bEnd   = parseInt(bEndParts[0])   * 60 + parseInt(bEndParts[1]);
+    return Math.max(0, bEnd - bStart);
 }
 
 // Mettre à jour le résumé
@@ -728,6 +748,28 @@ function initMultiPanel() {
 }
 
 // Ajouter une ligne dans le panneau multi-entrées
+function toggleBreak() {
+    const cb  = document.getElementById("hasBreak");
+    const grp = document.getElementById("breakGroup");
+    if (!cb || !grp) { return; }
+    grp.style.display = cb.checked ? "block" : "none";
+    if (!cb.checked) {
+        document.getElementById("breakStart").value = "";
+        document.getElementById("breakEnd").value   = "";
+    }
+}
+
+function toggleEditBreak() {
+    const cb  = document.getElementById("editHasBreak");
+    const grp = document.getElementById("editBreakGroup");
+    if (!cb || !grp) { return; }
+    grp.style.display = cb.checked ? "block" : "none";
+    if (!cb.checked) {
+        document.getElementById("editBreakStart").value = "";
+        document.getElementById("editBreakEnd").value   = "";
+    }
+}
+
 function addMultiRow() {
     const list = document.getElementById("multiEntriesList");
     const index = list.children.length;
@@ -782,6 +824,18 @@ function addMultiRow() {
                 <label>${t("multi.row.endDate")}</label>
                 <input type="date" class="form-input mr-enddate" />
             </div>
+            <div class="multi-row-break-toggle">
+                <input type="checkbox" class="mr-has-break" onchange="toggleMultiRowBreak(this)" />
+                <label>${t("label.hasBreak")}</label>
+            </div>
+            <div class="form-group multi-row-break-group mr-break-group" style="display:none">
+                <label>${t("label.breakTime")}</label>
+                <div class="break-time-inputs">
+                    <input type="time" class="form-input mr-break-start" />
+                    <span class="break-separator">${t("label.breakTo")}</span>
+                    <input type="time" class="form-input mr-break-end" />
+                </div>
+            </div>
             <div class="form-group multi-row-full">
                 <label>${t("multi.row.notes")}</label>
                 <input type="text" class="form-input mr-notes" :placeholder="${t("multi.row.notesPlaceholder")}" placeholder="${t("multi.row.notesPlaceholder")}" />
@@ -791,6 +845,16 @@ function addMultiRow() {
 
     list.appendChild(row);
     renumberMultiRows();
+}
+
+function toggleMultiRowBreak(cb) {
+    const grp = cb.closest(".multi-entry-row").querySelector(".mr-break-group");
+    if (!grp) { return; }
+    grp.style.display = cb.checked ? "block" : "none";
+    if (!cb.checked) {
+        grp.querySelector(".mr-break-start").value = "";
+        grp.querySelector(".mr-break-end").value   = "";
+    }
 }
 
 // Supprimer une ligne multi
@@ -817,6 +881,9 @@ function duplicateMultiRow(btn) {
     const endTime = row.querySelector(".mr-end").value;
     const night = row.querySelector(".mr-night").checked;
     const endDate = row.querySelector(".mr-enddate").value;
+    const hasBreak = row.querySelector(".mr-has-break").checked;
+    const breakStart = row.querySelector(".mr-break-start").value;
+    const breakEnd   = row.querySelector(".mr-break-end").value;
     const notes = row.querySelector(".mr-notes").value;
 
     // Ajouter une nouvelle ligne vide puis remplir avec les valeurs copiées
@@ -828,6 +895,15 @@ function duplicateMultiRow(btn) {
     newRow.querySelector(".mr-start").value = startTime;
     newRow.querySelector(".mr-end").value = endTime;
     newRow.querySelector(".mr-notes").value = notes;
+
+    // Copier la pause
+    if (hasBreak) {
+        const breakCb = newRow.querySelector(".mr-has-break");
+        breakCb.checked = true;
+        toggleMultiRowBreak(breakCb);
+        newRow.querySelector(".mr-break-start").value = breakStart;
+        newRow.querySelector(".mr-break-end").value   = breakEnd;
+    }
 
     // Appliquer le type (peut désactiver les heures si congé)
     handleMultiRowTypeChange(newRow.querySelector(".mr-type"));
@@ -938,6 +1014,10 @@ function saveMultiEntries() {
             return;
         }
 
+        const hasBreak   = row.querySelector(".mr-has-break").checked;
+        const breakStart = hasBreak ? row.querySelector(".mr-break-start").value : "";
+        const breakEnd   = hasBreak ? row.querySelector(".mr-break-end").value   : "";
+
         const entry = {
             id: Date.now().toString() + "_" + i,
             date: date,
@@ -950,6 +1030,10 @@ function saveMultiEntries() {
         };
         if (night) {
             entry.endDate = endDate;
+        }
+        if (hasBreak && breakStart && breakEnd) {
+            entry.breakStart = breakStart;
+            entry.breakEnd   = breakEnd;
         }
 
         toSave.push(entry);
@@ -1043,6 +1127,9 @@ function saveEntry() {
     const notes = document.getElementById("entryNotes").value;
     const spreadOverTwoDays = document.getElementById("spreadOverTwoDays").checked;
     const endDate = spreadOverTwoDays ? document.getElementById("endDate").value : date;
+    const hasBreak   = document.getElementById("hasBreak").checked;
+    const breakStart = hasBreak ? document.getElementById("breakStart").value : "";
+    const breakEnd   = hasBreak ? document.getElementById("breakEnd").value   : "";
 
     // Validation de base
     if (!date) {
@@ -1114,6 +1201,10 @@ function saveEntry() {
 
     if (finalSpreadOverTwoDays) {
         newEntry.endDate = finalEndDate;
+    }
+    if (hasBreak && breakStart && breakEnd) {
+        newEntry.breakStart = breakStart;
+        newEntry.breakEnd   = breakEnd;
     }
 
     // Ajouter à la liste
@@ -1342,6 +1433,9 @@ function saveEditedEntry() {
     const notes = document.getElementById("editEntryNotes").value;
     const spreadOverTwoDays = document.getElementById("editSpreadOverTwoDays").checked;
     const endDate = spreadOverTwoDays ? document.getElementById("editEndDate").value : date;
+    const hasBreak   = document.getElementById("editHasBreak").checked;
+    const breakStart = hasBreak ? document.getElementById("editBreakStart").value : "";
+    const breakEnd   = hasBreak ? document.getElementById("editBreakEnd").value   : "";
 
     // Validation
     if (!date || !startTime || !endTime) {
@@ -1399,6 +1493,13 @@ function saveEditedEntry() {
         entryToEdit.endDate = endDate;
     } else {
         delete entryToEdit.endDate;
+    }
+    if (hasBreak && breakStart && breakEnd) {
+        entryToEdit.breakStart = breakStart;
+        entryToEdit.breakEnd   = breakEnd;
+    } else {
+        delete entryToEdit.breakStart;
+        delete entryToEdit.breakEnd;
     }
 
     // Sauvegarder dans le localStorage
@@ -2415,18 +2516,23 @@ function createPDF(
                     month: "2-digit",
                     year: "numeric"
                 });
-                let timeInfo, durationInfo;
+                let timeInfo, breakInfo, durationInfo;
                 if (entry.type === "leave") {
-                    timeInfo = "";
+                    timeInfo     = "";
+                    breakInfo    = "";
                     durationInfo = "";
                 } else {
                     timeInfo = `${entry.startTime} - ${entry.endTime}`;
                     if (entry.endDate && entry.endDate !== entry.date) {
                         timeInfo += " " + t("pdf.night");
                     }
+                    // Pause en minutes
+                    const breakMins = getBreakMinutes(entry);
+                    breakInfo    = breakMins > 0 ? `${breakMins} min` : "-";
                     durationInfo = `${calculateHours(entry).toFixed(1)} h`;
                 }
-                const row = [dateStr, timeInfo, durationInfo, getTypeLabel(entry.type)];
+                // Ordre : Date | Heures | Pause | Durée | Type | [Notes]
+                const row = [dateStr, timeInfo, breakInfo, durationInfo, getTypeLabel(entry.type)];
                 if (includeNotesParam) {
                     row.push(entry.notes || "");
                 }
@@ -2443,18 +2549,21 @@ function createPDF(
                 return;
             }
 
-            if (data.column.index <= 3) {
+            // Colonnes 0-4 centrées (Date, Heures, Pause, Durée, Type)
+            if (data.column.index <= 4) {
                 data.cell.styles.halign = "center";
             }
 
-            if (includeNotes && data.column.index === 4) {
+            // Colonne Notes (index 5 avec Notes, index 4 sans Notes) → italique, aligné gauche
+            const notesColIndex = includeNotes ? 5 : -1;
+            if (includeNotes && data.column.index === notesColIndex) {
                 data.cell.styles.fontStyle = "italic";
                 data.cell.styles.halign = "left";
             }
 
-            // Colorisation des lignes par type — comparaison insensible à la langue via les valeurs traduites
+            // Colorisation des lignes par type — le Type est maintenant en index 4
             if (colorizeRows && data.row.raw) {
-                const typeLabel = data.row.raw[3] || "";
+                const typeLabel = data.row.raw[4] || "";
                 let rowBg = null;
                 if (typeLabel === t("type.normal")) {
                     rowBg = typeRowColors.normal;
@@ -2472,8 +2581,8 @@ function createPDF(
                 }
             }
 
-            // Couleur texte colonne Type
-            if (data.column.index === 3) {
+            // Couleur texte + bold sur la colonne Type (index 4)
+            if (data.column.index === 4) {
                 const val = data.cell.raw || "";
                 if (val === t("type.normal")) {
                     data.cell.styles.textColor = typeTextColors.normal;
@@ -2492,8 +2601,9 @@ function createPDF(
 
         const didDrawCell = (data) => {
             const rowData = data.row.raw;
-            const isLeave = rowData && rowData[3] && rowData[3] === t("type.leave");
-            if (data.row.section === "body" && isLeave && (data.column.index === 1 || data.column.index === 2)) {
+            // Le Type est maintenant en index 4 — on dessine la croix sur Heures (1) et Pause (2)
+            const isLeave = rowData && rowData[4] && rowData[4] === t("type.leave");
+            if (data.row.section === "body" && isLeave && (data.column.index === 1 || data.column.index === 2 || data.column.index === 3)) {
                 const iconSize = data.cell.height * 0.4;
                 const centerX = data.cell.x + data.cell.width / 2;
                 const centerY = data.cell.y + data.cell.height / 2;
@@ -2547,6 +2657,7 @@ function createPDF(
                     [
                         t("pdf.col.date"),
                         t("pdf.col.hours"),
+                        t("pdf.col.break"),
                         t("pdf.col.duration"),
                         t("pdf.col.type"),
                         ...(includeNotes ? [t("pdf.col.notes")] : [])
@@ -2564,11 +2675,12 @@ function createPDF(
                     font: pdfFont
                 },
                 columnStyles: {
-                    0: { cellWidth: 30 },
-                    1: { cellWidth: 35 },
-                    2: { cellWidth: 21 },
-                    3: { cellWidth: 25 },
-                    4: { cellWidth: "auto" }
+                    0: { cellWidth: 27 }, // Date
+                    1: { cellWidth: 35 }, // Heures
+                    2: { cellWidth: 18 }, // Pause
+                    3: { cellWidth: 18 }, // Durée
+                    4: { cellWidth: 22 }, // Type
+                    5: { cellWidth: "auto" } // Notes
                 },
                 didParseCell: didParseCell,
                 didDrawCell: didDrawCell
